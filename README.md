@@ -155,6 +155,7 @@ Se nenhum arquivo for encontrado, usa os formatos padrão.
 | `Ctrl+F` | Abrir busca |
 | `Ctrl+R` | Recarregar arquivos |
 | `Ctrl+D` | Mostrar Dashboard |
+| `S` | Ordenar por data (OFF → Antigo→Novo → Novo→Antigo → OFF) |
 | `E` | Filtrar apenas ERRORs |
 | `W` | Filtrar apenas WARNINGs |
 | `I` | Filtrar apenas INFOs |

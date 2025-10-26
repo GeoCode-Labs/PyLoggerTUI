@@ -73,6 +73,7 @@ class LogViewer(RichLog):
         self.entries: List[LogEntry] = []
         self.filtered_entries: List[LogEntry] = []
         self.current_filter: Optional[LogLevel] = None
+        self.sort_order: Optional[str] = None  # None, 'asc', 'desc'
 
     def load_entries(self, entries: List[LogEntry]):
         """Carrega entradas de log."""
@@ -104,6 +105,56 @@ class LogViewer(RichLog):
                 entry for entry in self.entries
                 if query_lower in entry.raw_line.lower()
             ]
+
+        self.refresh_display()
+
+    def toggle_sort_by_date(self) -> str:
+        """
+        Alterna entre ordenação por data.
+        Ciclo: None -> Ascending (antigo->novo) -> Descending (novo->antigo) -> None
+
+        Retorna o estado atual de ordenação para feedback ao usuário.
+        """
+        from datetime import datetime
+
+        if self.sort_order is None:
+            # Ativa ordenação ascendente (mais antigo primeiro)
+            self.sort_order = 'asc'
+            self._apply_sort()
+            return "Sorted: Oldest → Newest"
+        elif self.sort_order == 'asc':
+            # Ativa ordenação descendente (mais novo primeiro)
+            self.sort_order = 'desc'
+            self._apply_sort()
+            return "Sorted: Newest → Oldest"
+        else:
+            # Desativa ordenação (ordem original)
+            self.sort_order = None
+            self._apply_sort()
+            return "Sort: OFF (original order)"
+
+    def _apply_sort(self):
+        """Aplica a ordenação atual às entradas filtradas."""
+        if self.sort_order is None:
+            # Restaura ordem original (por linha)
+            self.filtered_entries = sorted(self.filtered_entries, key=lambda e: e.line_number)
+        elif self.sort_order == 'asc':
+            # Ordena por timestamp ascendente (antigo -> novo)
+            # Entradas sem timestamp vão para o fim
+            from datetime import datetime
+            self.filtered_entries = sorted(
+                self.filtered_entries,
+                key=lambda e: e.timestamp if e.timestamp else datetime.max
+            )
+        elif self.sort_order == 'desc':
+            # Ordena por timestamp descendente (novo -> antigo)
+            # Entradas sem timestamp vão para o fim
+            from datetime import datetime
+            self.filtered_entries = sorted(
+                self.filtered_entries,
+                key=lambda e: e.timestamp if e.timestamp else datetime.min,
+                reverse=True
+            )
 
         self.refresh_display()
 

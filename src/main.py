@@ -118,6 +118,7 @@ class LogAnalyzerApp(App):
         Binding("ctrl+f", "search", "Search"),
         Binding("ctrl+r", "reload", "Reload"),
         Binding("ctrl+d", "show_dashboard", "Dashboard"),
+        Binding("s", "sort_by_date", "Sort by Date"),
         Binding("e", "filter_errors", "Errors"),
         Binding("w", "filter_warnings", "Warnings"),
         Binding("i", "filter_info", "Info"),
@@ -259,6 +260,15 @@ class LogAnalyzerApp(App):
         except Exception as e:
             self.notify(f"Error: {e}", severity="error")
 
+    def action_sort_by_date(self):
+        """Alterna ordenação por data (None -> Asc -> Desc -> None)."""
+        viewer = self.get_current_viewer()
+        if viewer:
+            status_msg = viewer.toggle_sort_by_date()
+            self.notify(status_msg)
+        else:
+            self.notify("Sort by date only works on log tabs", severity="warning")
+
     def action_filter_errors(self):
         """Filtra apenas erros."""
         viewer = self.get_current_viewer()
@@ -321,6 +331,7 @@ Keyboard Shortcuts:
   Ctrl+F    - Search
   Ctrl+R    - Reload files
   Ctrl+D    - Show Dashboard
+  S         - Sort by date (toggle: OFF → Oldest→Newest → Newest→Oldest)
   E         - Filter Errors only
   W         - Filter Warnings only
   I         - Filter Info only
