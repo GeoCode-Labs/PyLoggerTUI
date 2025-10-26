@@ -28,43 +28,56 @@ class LogConfig:
         Exemplo:
         "[ {time} | process: {process.id} | {level: <8}] {module}.{function}:{line} {message}"
         """
-        # Escapa caracteres especiais do regex
-        pattern = re.escape(self.format)
+        # Primeiro substitui os placeholders por marcadores temporários
+        # Isso evita problemas com escaping
+        pattern = self.format
 
-        # Substitui os placeholders por grupos de captura
-        replacements = {
-            # Timestamp - vários formatos possíveis
-            r'\{time\}': r'(?P<timestamp>[^\|\]]+)',
-            r'\{timestamp\}': r'(?P<timestamp>[^\|\]]+)',
-            r'\{time:[^\}]+\}': r'(?P<timestamp>[^\|\]]+)',
+        # Ordem importa: substituir padrões mais específicos primeiro
+        replacements = [
+            # Timestamp com formatação
+            (r'{time:[^}]+}', '__TIMESTAMP__'),
+            (r'{time}', '__TIMESTAMP__'),
+            (r'{timestamp}', '__TIMESTAMP__'),
 
-            # Level - pode ter formatação como {level: <8}
-            r'\{level\}': r'(?P<level>\w+)',
-            r'\{level:[^\}]+\}': r'(?P<level>\w+)',
+            # Level com formatação (como {level: <8})
+            (r'{level:[^}]+}', '__LEVEL__'),
+            (r'{level}', '__LEVEL__'),
 
-            # Message - captura tudo até o final
-            r'\{message\}': r'(?P<message>.*)',
+            # Message
+            (r'{message}', '__MESSAGE__'),
 
-            # Outros campos - captura até o próximo separador
-            r'\{module\}': r'(?P<module>[^\.\s\]]+)',
-            r'\{function\}': r'(?P<function>[^\:\s\]]+)',
-            r'\{line\}': r'(?P<line>\d+)',
-            r'\{process\.id\}': r'(?P<process_id>\d+)',
-            r'\{process\.name\}': r'(?P<process_name>[^\|\s\]]+)',
-            r'\{thread\.id\}': r'(?P<thread_id>\d+)',
-            r'\{thread\.name\}': r'(?P<thread_name>[^\|\s\]]+)',
-            r'\{name\}': r'(?P<name>[^\s\]]+)',
-            r'\{file\}': r'(?P<file>[^\s\]]+)',
-        }
+            # Outros campos
+            (r'{module}', '__MODULE__'),
+            (r'{function}', '__FUNCTION__'),
+            (r'{line}', '__LINE__'),
+            (r'{process.id}', '__PROCESS_ID__'),
+            (r'{process.name}', '__PROCESS_NAME__'),
+            (r'{thread.id}', '__THREAD_ID__'),
+            (r'{thread.name}', '__THREAD_NAME__'),
+            (r'{name}', '__NAME__'),
+            (r'{file}', '__FILE__'),
+        ]
 
-        for placeholder, regex_group in replacements.items():
-            pattern = re.sub(placeholder, regex_group, pattern)
+        # Substitui placeholders por marcadores
+        for placeholder, marker in replacements:
+            pattern = re.sub(re.escape(placeholder), marker, pattern)
 
-        # Remove escapes desnecessários dos grupos de captura
-        pattern = pattern.replace(r'\(', '(').replace(r'\)', ')')
-        pattern = pattern.replace(r'\?', '?')
-        pattern = pattern.replace(r'\<', '<').replace(r'\>', '>')
-        pattern = pattern.replace(r'\|', '|')
+        # Agora escapa o que sobrou (caracteres especiais de regex)
+        pattern = re.escape(pattern)
+
+        # Substitui marcadores por grupos regex
+        pattern = pattern.replace('__TIMESTAMP__', r'(?P<timestamp>[^\|\]]+)')
+        pattern = pattern.replace('__LEVEL__', r'(?P<level>\w+)')
+        pattern = pattern.replace('__MESSAGE__', r'(?P<message>.*)')
+        pattern = pattern.replace('__MODULE__', r'(?P<module>[^\.\s\]]+)')
+        pattern = pattern.replace('__FUNCTION__', r'(?P<function>[^\:\s\]]+)')
+        pattern = pattern.replace('__LINE__', r'(?P<line>\d+)')
+        pattern = pattern.replace('__PROCESS_ID__', r'(?P<process_id>\d+)')
+        pattern = pattern.replace('__PROCESS_NAME__', r'(?P<process_name>[^\|\s\]]+)')
+        pattern = pattern.replace('__THREAD_ID__', r'(?P<thread_id>\d+)')
+        pattern = pattern.replace('__THREAD_NAME__', r'(?P<thread_name>[^\|\s\]]+)')
+        pattern = pattern.replace('__NAME__', r'(?P<name>[^\s\]]+)')
+        pattern = pattern.replace('__FILE__', r'(?P<file>[^\s\]]+)')
 
         try:
             return re.compile(pattern)
