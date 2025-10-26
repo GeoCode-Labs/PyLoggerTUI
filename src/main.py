@@ -130,12 +130,30 @@ class LogAnalyzerApp(App):
 
     def __init__(self, paths: List[Path], watch: bool = False):
         super().__init__()
-        self.paths = paths
         self.watch = watch
         self.files_data: Dict[str, List[LogEntry]] = {}
         self.log_viewers: Dict[str, LogViewer] = {}
         self.stats_bar: Optional[StatsBar] = None
         self.dashboard: Optional[DashboardView] = None
+
+        # Expande diretórios para arquivos .log
+        self.paths = self._expand_paths(paths)
+
+    def _expand_paths(self, paths: List[Path]) -> List[Path]:
+        """Expande diretórios para incluir todos os arquivos .log."""
+        expanded = []
+        for path in paths:
+            if path.is_file():
+                expanded.append(path)
+            elif path.is_dir():
+                # Adiciona todos os .log do diretório
+                log_files = sorted(path.glob("*.log"))
+                if log_files:
+                    expanded.extend(log_files)
+                else:
+                    # Se não encontrar .log, avisa mas não quebra
+                    print(f"Warning: No .log files found in {path}")
+        return expanded
 
     def compose(self) -> ComposeResult:
         """Compõe a interface."""
@@ -169,19 +187,13 @@ class LogAnalyzerApp(App):
     def load_all_files(self):
         """Carrega todos os arquivos."""
         for path in self.paths:
-            if path.is_file():
-                entries = LogParser.parse_file(path)
-                self.files_data[str(path)] = entries
+            # Todos os paths agora são arquivos (já expandidos)
+            entries = LogParser.parse_file(path)
+            self.files_data[str(path)] = entries
 
-                # Carrega no viewer correspondente
-                if str(path) in self.log_viewers:
-                    self.log_viewers[str(path)].load_entries(entries)
-
-            elif path.is_dir():
-                # Carrega todos os .log na pasta
-                for log_file in path.glob("*.log"):
-                    entries = LogParser.parse_file(log_file)
-                    self.files_data[str(log_file)] = entries
+            # Carrega no viewer correspondente
+            if str(path) in self.log_viewers:
+                self.log_viewers[str(path)].load_entries(entries)
 
         # Atualiza dashboard
         if self.dashboard:

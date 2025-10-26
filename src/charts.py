@@ -34,15 +34,26 @@ class LogCharts:
         # Ordena por timestamp
         sorted_hours = sorted(hourly_counts.keys())
         counts = [hourly_counts[hour] for hour in sorted_hours]
-        labels = [hour.strftime("%H:%M") for hour in sorted_hours]
+
+        # Converte para strings para evitar problemas com plotext
+        # Usamos formato simples de índice + label
+        labels = [f"{i}" for i in range(len(sorted_hours))]
 
         # Cria gráfico
         plt.clf()
         plt.plot_size(width, height)
-        plt.plot(labels, counts, marker="braille")
+        plt.plot(counts, marker="braille")
         plt.title("Log Timeline - Events per Hour")
         plt.xlabel("Time")
         plt.ylabel("Count")
+
+        # Adiciona labels customizados (apenas alguns para não poluir)
+        if len(sorted_hours) > 0:
+            # Mostra labels a cada N horas
+            step = max(1, len(sorted_hours) // 10)
+            xticks = list(range(0, len(sorted_hours), step))
+            xlabels = [sorted_hours[i].strftime("%d/%m %H:%M") for i in xticks]
+            plt.xticks(xticks, xlabels)
 
         # Retorna como string
         return plt.build()
@@ -135,16 +146,22 @@ class LogCharts:
         sorted_hours = sorted(hourly_errors.keys())
         error_counts = [hourly_errors[hour]['errors'] for hour in sorted_hours]
         warning_counts = [hourly_errors[hour]['warnings'] for hour in sorted_hours]
-        labels = [hour.strftime("%H:%M") for hour in sorted_hours]
 
         # Cria gráfico com múltiplas linhas
         plt.clf()
         plt.plot_size(width, height)
-        plt.plot(labels, error_counts, label="Errors", marker="braille")
-        plt.plot(labels, warning_counts, label="Warnings", marker="braille")
+        plt.plot(error_counts, label="Errors", marker="braille")
+        plt.plot(warning_counts, label="Warnings", marker="braille")
         plt.title("Errors and Warnings Timeline")
         plt.xlabel("Time")
         plt.ylabel("Count")
+
+        # Adiciona labels customizados
+        if len(sorted_hours) > 0:
+            step = max(1, len(sorted_hours) // 10)
+            xticks = list(range(0, len(sorted_hours), step))
+            xlabels = [sorted_hours[i].strftime("%d/%m %H:%M") for i in xticks]
+            plt.xticks(xticks, xlabels)
 
         return plt.build()
 
