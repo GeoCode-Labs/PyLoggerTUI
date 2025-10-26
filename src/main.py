@@ -169,7 +169,9 @@ class LogAnalyzerApp(App):
             # Tabs para cada arquivo
             for path in self.paths:
                 file_name = path.name
-                with TabPane(file_name, id=f"file-{file_name}"):
+                # Cria ID válido (sem pontos, que não são permitidos)
+                safe_id = f"file-{file_name.replace('.', '_')}"
+                with TabPane(file_name, id=safe_id):
                     log_viewer = LogViewer()
                     self.log_viewers[str(path)] = log_viewer
                     yield log_viewer
@@ -227,7 +229,8 @@ class LogAnalyzerApp(App):
             # Encontra o viewer correspondente
             for path, viewer in self.log_viewers.items():
                 file_name = Path(path).name
-                if active_tab_id == f"file-{file_name}":
+                safe_id = f"file-{file_name.replace('.', '_')}"
+                if active_tab_id == safe_id:
                     return viewer
 
         except Exception:
