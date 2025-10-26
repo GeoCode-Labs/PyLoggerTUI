@@ -1,0 +1,72 @@
+[project]
+name = "pyloggertui"
+version = "0.1.0"
+description = "Visualizador de logs interativo no terminal com suporte a múltiplos arquivos, análise em tempo real, gráficos e estatísticas profissionais"
+authors = [
+    {name = "Log Analyzer Team", email = "team@example.com"}
+]
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.8"
+keywords = ["logs", "tui", "terminal", "analyzer", "viewer", "textual"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Logging",
+    "Topic :: Utilities",
+]
+
+dependencies = [
+    "textual>=0.47.0",
+    "plotext>=5.2.8",
+    "rich>=13.7.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "textual-dev>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/GeoCode-Labs/PyLoggerTUI"
+Repository = "https://github.com/GeoCode-Labs/PyLoggerTUI"
+Issues = "https://github.com/GeoCode-Labs/PyLoggerTUI/issues"
+
+[project.scripts]
+pyloggertui = "src.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --cov=src --cov-report=term-missing"
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
