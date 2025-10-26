@@ -2,6 +2,7 @@
 Dashboard com visão geral e estatísticas dos logs.
 """
 
+from datetime import datetime
 from textual.app import ComposeResult
 from textual.containers import Container, Vertical, Horizontal, ScrollableContainer
 from textual.widgets import Static, Label
@@ -224,8 +225,6 @@ class RecentErrors(Static):
 
     def render(self) -> Table:
         """Renderiza tabela de erros recentes."""
-        from datetime import datetime
-
         table = Table(
             title="Recent Errors",
             show_header=True,
