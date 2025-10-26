@@ -190,7 +190,9 @@ class LogAnalyzerApp(App):
         """Carrega todos os arquivos."""
         for path in self.paths:
             # Todos os paths agora são arquivos (já expandidos)
-            entries = LogParser.parse_file(path)
+            # Cria parser apropriado (com config customizado se existir)
+            parser = LogParser.create_parser(path)
+            entries = parser.parse_file(path)
             self.files_data[str(path)] = entries
 
             # Carrega no viewer correspondente

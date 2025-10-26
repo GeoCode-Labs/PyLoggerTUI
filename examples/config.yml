@@ -1,0 +1,30 @@
+# PyLoggerTUI Configuration File
+# Este arquivo define o formato customizado dos logs
+
+# Formato do log
+# Suporta os seguintes placeholders:
+#   {time} ou {timestamp} - Data/hora do log
+#   {level}               - Nível do log (INFO, ERROR, etc)
+#   {message}             - Mensagem do log
+#   {module}              - Nome do módulo
+#   {function}            - Nome da função
+#   {line}                - Número da linha
+#   {process.id}          - ID do processo
+#   {process.name}        - Nome do processo
+#   {thread.id}           - ID da thread
+#   {thread.name}         - Nome da thread
+
+# Exemplo de formato Loguru:
+# format: "[ {time} | process: {process.id} | {level: <8}] {module}.{function}:{line} {message}"
+
+# Exemplo de formato simples (default):
+format: "[{timestamp}] {level} | {message}"
+
+# Formato de data (opcional)
+# Se não especificado, tenta vários formatos automaticamente
+# Exemplos:
+#   "%Y-%m-%d %H:%M:%S"        -> 2025-10-26 14:30:00
+#   "%d/%m/%Y %H:%M:%S"        -> 26/10/2025 14:30:00
+#   "%Y-%m-%dT%H:%M:%S.%fZ"    -> 2025-10-26T14:30:00.123Z
+
+# date_format: "%Y-%m-%d %H:%M:%S"
