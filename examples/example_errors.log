@@ -1,0 +1,24 @@
+[2025-10-26 09:00:00] ERROR | Failed to load configuration file
+[2025-10-26 09:05:12] ERROR | Connection refused: localhost:5432
+[2025-10-26 09:10:33] WARNING | Deprecated API endpoint called: /api/v1/users
+[2025-10-26 09:15:45] ERROR | File not found: /var/data/users.db
+Traceback (most recent call last):
+  File "main.py", line 23, in load_database
+    with open(db_path, 'r') as f:
+FileNotFoundError: [Errno 2] No such file or directory: '/var/data/users.db'
+[2025-10-26 09:20:00] CRITICAL | Security breach detected!
+[2025-10-26 09:20:01] ERROR | Unauthorized access attempt from IP: 192.168.1.100
+[2025-10-26 09:25:30] WARNING | SSL certificate expires in 7 days
+[2025-10-26 09:30:15] ERROR | API rate limit exceeded for user: api_key_12345
+[2025-10-26 09:35:00] ERROR | Payment processing failed: insufficient funds
+[2025-10-26 09:40:22] CRITICAL | Data corruption detected in table: transactions
+[2025-10-26 09:45:10] ERROR | Email sending failed: SMTP connection timeout
+[2025-10-26 09:50:00] WARNING | Disk space running low: 5% remaining
+[2025-10-26 09:55:33] ERROR | Invalid JSON in request body
+[2025-10-26 10:00:00] CRITICAL | Database backup failed!
+Traceback (most recent call last):
+  File "backup.py", line 67, in create_backup
+    shutil.copy2(source, destination)
+  File "shutil.py", line 261, in copy2
+    copyfile(src, dst, follow_symlinks=follow_symlinks)
+PermissionError: [Errno 13] Permission denied: '/backup/db_backup.sql'

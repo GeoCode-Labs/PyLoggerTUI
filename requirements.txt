@@ -1,0 +1,10 @@
+# PyLoggerTUI - Log Analyzer Dependencies
+
+# TUI Framework
+textual>=0.47.0
+
+# Terminal plots
+plotext>=5.2.8
+
+# Rich text formatting (dependency of textual, but explicit)
+rich>=13.7.0
