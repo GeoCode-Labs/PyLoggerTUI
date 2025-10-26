@@ -23,13 +23,47 @@ Visualizador de logs interativo no terminal com suporte a múltiplos arquivos, a
 ### Requisitos
 
 - Python 3.8 ou superior
-- pip
+- [uv](https://docs.astral.sh/uv/) - Gerenciador de pacotes Python ultra-rápido
 
-### Instalar via pip
+### Instalar uv
+
+Se você ainda não tem o `uv` instalado:
+
+```bash
+# No Linux/macOS
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# No Windows
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Ou via pip
+pip install uv
+```
+
+### Instalar PyLoggerTUI
 
 ```bash
 # Clone o repositório
-git clone https://github.com/yourusername/PyLoggerTUI.git
+git clone https://github.com/GeoCode-Labs/PyLoggerTUI.git
+cd PyLoggerTUI
+
+# Sincronizar dependências com uv (cria ambiente virtual automaticamente)
+uv sync
+
+# Ativar o ambiente virtual
+source .venv/bin/activate  # Linux/macOS
+# ou
+.venv\Scripts\activate     # Windows
+
+# Ou executar diretamente com uv (sem ativar venv)
+uv run python -m src.main /caminho/para/logs
+```
+
+### Instalação Alternativa (pip tradicional)
+
+```bash
+# Clone o repositório
+git clone https://github.com/GeoCode-Labs/PyLoggerTUI.git
 cd PyLoggerTUI
 
 # Instale as dependências
@@ -47,30 +81,35 @@ pip install -r requirements.txt
 ### Exemplos Básicos
 
 ```bash
+# Com uv (recomendado)
 # Abrir uma pasta de logs (carrega todos os .log)
-python -m src.main /caminho/para/pasta/logs
+uv run python -m src.main /caminho/para/pasta/logs
 
 # Abrir arquivo único
-python -m src.main arquivo.log
+uv run python -m src.main arquivo.log
 
 # Abrir múltiplos arquivos
-python -m src.main app.log error.log debug.log
+uv run python -m src.main app.log error.log debug.log
 
 # Modo watch (auto-refresh - em desenvolvimento)
-python -m src.main /caminho/logs --watch
+uv run python -m src.main /caminho/logs --watch
+
+# Se você ativou o ambiente virtual
+source .venv/bin/activate
+python -m src.main /caminho/para/logs
 ```
 
 ### Exemplos Avançados
 
 ```bash
 # Analisar logs de produção
-python -m src.main /var/log/myapp/*.log
+uv run python -m src.main /var/log/myapp/*.log
 
 # Abrir logs com caminhos relativos
-python -m src.main ./logs/
+uv run python -m src.main ./logs/
 
 # Ver ajuda completa
-python -m src.main --help
+uv run python -m src.main --help
 ```
 
 ## Atalhos de Teclado
@@ -180,27 +219,60 @@ Visualizações disponíveis:
 
 ## Desenvolvimento
 
+### Configurar Ambiente de Desenvolvimento
+
+```bash
+# Instalar dependências de desenvolvimento
+uv sync --extra dev
+
+# Ou adicionar dependências de dev manualmente
+uv add --dev pytest pytest-cov textual-dev
+```
+
 ### Executar Testes
 
 ```bash
+# Com uv
 # Todos os testes
-python -m pytest tests/
+uv run pytest tests/
 
 # Testes específicos
-python -m pytest tests/test_parser.py
+uv run pytest tests/test_parser.py
 
 # Com coverage
-python -m pytest --cov=src tests/
+uv run pytest --cov=src tests/
+
+# Se o ambiente virtual estiver ativado
+pytest tests/
 ```
 
 ### Modo Desenvolvimento com Hot-Reload
 
 ```bash
-# Requer textual-dev
-pip install textual-dev
+# Requer textual-dev (incluído nas dependências de dev)
+uv run textual run --dev src/main.py /caminho/logs
 
-# Run com auto-reload
+# Ou com venv ativado
 textual run --dev src/main.py /caminho/logs
+```
+
+### Gerenciar Dependências
+
+```bash
+# Adicionar nova dependência
+uv add nome-do-pacote
+
+# Adicionar dependência de desenvolvimento
+uv add --dev nome-do-pacote
+
+# Remover dependência
+uv remove nome-do-pacote
+
+# Atualizar todas as dependências
+uv sync --upgrade
+
+# Gerar requirements.txt atualizado
+uv pip compile pyproject.toml -o requirements.txt
 ```
 
 ### Estrutura de Classes
@@ -264,8 +336,24 @@ Contribuições são bem-vindas! Por favor:
 ### Problema: "No module named 'textual'"
 
 ```bash
-# Solução: Instale as dependências
+# Solução com uv: Sincronize as dependências
+uv sync
+
+# Ou com pip tradicional
 pip install -r requirements.txt
+```
+
+### Problema: uv não encontrado
+
+```bash
+# Instale o uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Ou via pip
+pip install uv
+
+# Verifique a instalação
+uv --version
 ```
 
 ### Problema: Caracteres estranhos no terminal
