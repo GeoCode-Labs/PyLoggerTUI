@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Tuple
 from pathlib import Path
 
 
@@ -42,10 +42,25 @@ class LogEntry:
     is_traceback: bool = False
     traceback_lines: List[str] = None
     file_path: Optional[str] = None
+    # Localização no código (para logs estruturados como Loguru)
+    module: Optional[str] = None
+    function: Optional[str] = None
+    code_line: Optional[int] = None
 
     def __post_init__(self):
         if self.traceback_lines is None:
             self.traceback_lines = []
+
+    @property
+    def location(self) -> Optional[str]:
+        """Retorna a localização formatada (module.function:line)."""
+        if self.module and self.function and self.code_line:
+            return f"{self.module}.{self.function}:{self.code_line}"
+        elif self.module and self.function:
+            return f"{self.module}.{self.function}"
+        elif self.module:
+            return self.module
+        return None
 
 
 class LogParser:
@@ -91,6 +106,12 @@ class LogParser:
     TRACEBACK_LINE = re.compile(r'\s+File "(?P<file>.*)", line (?P<line>\d+), in (?P<func>.*)')
     TRACEBACK_ERROR = re.compile(r'^(?P<error>\w+Error|Exception):')
 
+    # Padrão para detectar localização no código (estilo Loguru)
+    # Exemplo: src.config.mongo:_close:40 ou module.submodule:function:123
+    LOCATION_PATTERN = re.compile(
+        r'(?P<module>[\w\.]+):(?P<function>\w+):(?P<line>\d+)'
+    )
+
     def parse_timestamp(self, timestamp_str: str) -> Optional[datetime]:
         """Parse timestamp de diferentes formatos."""
         formats = [
@@ -117,6 +138,28 @@ class LogParser:
             except ValueError:
                 continue
         return None
+
+    def _extract_location(self, message: str) -> Tuple[Optional[str], Optional[str], Optional[int]]:
+        """
+        Extrai informações de localização no código da mensagem.
+
+        Procura por padrões como:
+        - src.config.mongo:_close:40
+        - module.submodule:function:123
+
+        Retorna: (module, function, line_number) ou (None, None, None)
+        """
+        match = self.LOCATION_PATTERN.search(message)
+        if match:
+            module = match.group('module')
+            function = match.group('function')
+            try:
+                line = int(match.group('line'))
+                return (module, function, line)
+            except ValueError:
+                return (module, function, None)
+
+        return (None, None, None)
 
     def parse_line(self, line: str, line_number: int) -> LogEntry:
         """Parse uma linha de log."""
@@ -161,12 +204,18 @@ class LogParser:
                 level = LogLevel.from_string(groups.get('level', 'UNKNOWN'))
                 message = groups.get('message', '').strip()
 
+                # Extrai informações de localização (se presentes)
+                module, function, code_line = self._extract_location(message)
+
                 return LogEntry(
                     raw_line=line,
                     line_number=line_number,
                     timestamp=timestamp,
                     level=level,
-                    message=message
+                    message=message,
+                    module=module,
+                    function=function,
+                    code_line=code_line
                 )
 
         # Se não match nenhum padrão, retorna entrada simples
