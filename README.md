@@ -75,6 +75,7 @@ pip install -r requirements.txt
 - `textual>=0.47.0` - Framework TUI moderno
 - `plotext>=5.2.8` - Gráficos no terminal
 - `rich>=13.7.0` - Formatação de texto rica
+- `pyyaml>=6.0.3` - Leitura de arquivos de configuração YAML
 
 ## Uso
 
@@ -112,6 +113,41 @@ uv run python -m src.main ./logs/
 uv run python -m src.main --help
 ```
 
+## Configuração Customizada
+
+PyLoggerTUI suporta formatos de log customizados através de um arquivo `config.yml` na mesma pasta dos logs.
+
+### Exemplo de config.yml
+
+```yaml
+# Formato do log com placeholders
+format: "[ {time} | process: {process.id} | {level: <8}] {module}.{function}:{line} {message}"
+
+# Formato de data (opcional)
+date_format: "%Y-%m-%d %H:%M:%S"
+```
+
+### Placeholders Suportados
+
+- `{time}` ou `{timestamp}` - Data/hora do log
+- `{level}` - Nível do log (INFO, ERROR, etc)
+- `{message}` - Mensagem do log
+- `{module}` - Nome do módulo
+- `{function}` - Nome da função
+- `{line}` - Número da linha
+- `{process.id}` / `{process.name}` - Informações do processo
+- `{thread.id}` / `{thread.name}` - Informações da thread
+
+### Arquivos de Configuração
+
+O PyLoggerTUI procura automaticamente por:
+1. `config.yml` na pasta dos logs
+2. `config.yaml` na pasta dos logs
+3. `.loggerconfig.yml` na pasta dos logs
+4. `logger.yml` na pasta dos logs
+
+Se nenhum arquivo for encontrado, usa os formatos padrão.
+
 ## Atalhos de Teclado
 
 | Atalho | Ação |
@@ -119,6 +155,7 @@ uv run python -m src.main --help
 | `Ctrl+F` | Abrir busca |
 | `Ctrl+R` | Recarregar arquivos |
 | `Ctrl+D` | Mostrar Dashboard |
+| `S` | Ordenar por data (OFF → Antigo→Novo → Novo→Antigo → OFF) |
 | `E` | Filtrar apenas ERRORs |
 | `W` | Filtrar apenas WARNINGs |
 | `I` | Filtrar apenas INFOs |
@@ -133,11 +170,17 @@ uv run python -m src.main --help
 PyLoggerTUI/
 ├── src/
 │   ├── __init__.py          # Package initialization
+│   ├── __main__.py          # Entry point para python -m src
 │   ├── main.py              # Aplicação principal TUI
 │   ├── parser.py            # Parser de logs multi-formato
+│   ├── config.py            # Carregador de configurações YAML
 │   ├── widgets.py           # Widgets Textual customizados
 │   ├── dashboard.py         # Dashboard com estatísticas
 │   └── charts.py            # Geração de gráficos com plotext
+├── examples/
+│   ├── config.yml           # Exemplo de configuração customizada
+│   ├── example_app.log      # Logs de exemplo
+│   └── example_errors.log   # Logs de erro de exemplo
 ├── tests/
 │   ├── __init__.py
 │   └── test_parser.py       # Testes do parser
@@ -305,9 +348,9 @@ uv pip compile pyproject.toml -o requirements.txt
 - [x] Dashboard com estatísticas
 - [x] Gráficos com plotext
 - [x] Detecção de tracebacks
+- [x] Configuração via arquivo YAML (formatos customizados)
 - [ ] Auto-refresh (watch mode)
 - [ ] Export de relatórios (HTML, JSON)
-- [ ] Configuração via arquivo YAML
 - [ ] Temas customizáveis
 - [ ] Plugin system
 - [ ] Suporte a logs comprimidos (.gz, .zip)

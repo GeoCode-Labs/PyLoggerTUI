@@ -61,6 +61,9 @@ class DashboardView(ScrollableContainer):
         if recent_errors:
             yield RecentErrors(recent_errors)
 
+        # Erros por localização no código
+        yield ErrorsByLocation(self.all_entries)
+
         # Charts (se houver timestamps)
         if any(e.timestamp for e in self.all_entries):
             yield ChartsSection(self.all_entries)
@@ -246,6 +249,71 @@ class RecentErrors(Static):
                 error.level.value,
                 message
             )
+
+        return table
+
+
+class ErrorsByLocation(Static):
+    """Tabela mostrando erros agrupados por localização no código."""
+
+    def __init__(self, entries: List[LogEntry], **kwargs):
+        super().__init__(**kwargs)
+        self.entries = entries
+
+    def render(self) -> Table:
+        """Renderiza tabela de erros por localização."""
+        from collections import Counter
+
+        # Filtra apenas erros e críticos que tem localização
+        errors_with_location = [
+            e for e in self.entries
+            if e.level in [LogLevel.ERROR, LogLevel.CRITICAL] and e.location
+        ]
+
+        if not errors_with_location:
+            # Se não houver erros com localização, retorna tabela vazia com mensagem
+            table = Table(
+                title="Errors by Code Location",
+                show_header=True,
+                header_style="bold red",
+                border_style="red",
+                expand=True
+            )
+            table.add_column("Location", style="cyan")
+            table.add_column("Count", justify="right", style="red")
+            table.add_row("No errors with location info", "-")
+            return table
+
+        # Conta erros por localização
+        location_counter = Counter(e.location for e in errors_with_location)
+
+        # Cria tabela
+        table = Table(
+            title="Errors by Code Location",
+            show_header=True,
+            header_style="bold red",
+            border_style="red",
+            expand=True
+        )
+
+        table.add_column("Location", style="cyan", width=50)
+        table.add_column("Module", style="yellow", width=25)
+        table.add_column("Function", style="green", width=20)
+        table.add_column("Line", justify="right", style="blue", width=8)
+        table.add_column("Count", justify="right", style="bold red", width=8)
+
+        # Adiciona as top 15 localizações com mais erros
+        for location, count in location_counter.most_common(15):
+            # Encontra um entry com essa localização para pegar detalhes
+            entry = next((e for e in errors_with_location if e.location == location), None)
+            if entry:
+                table.add_row(
+                    location,
+                    entry.module or "-",
+                    entry.function or "-",
+                    str(entry.code_line) if entry.code_line else "-",
+                    str(count)
+                )
 
         return table
 
