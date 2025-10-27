@@ -3,10 +3,11 @@ Parser de logs com suporte a múltiplos formatos e detecção de tracebacks.
 """
 
 import re
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Optional, List, Union, Tuple
+from typing import Optional, List, Union, Tuple, Callable
 from pathlib import Path
 
 
@@ -225,7 +226,9 @@ class LogParser:
             message=line
         )
 
-    def parse_file(self, file_path: Path, max_lines: Optional[int] = None, smart_sample: bool = False) -> List[LogEntry]:
+    def parse_file(self, file_path: Path, max_lines: Optional[int] = None,
+                   smart_sample: bool = False,
+                   progress_callback: Optional[Callable[[int, int, int], None]] = None) -> List[LogEntry]:
         """
         Parse um arquivo de log completo usando este parser.
 
@@ -233,8 +236,11 @@ class LogParser:
             file_path: Caminho do arquivo
             max_lines: Número máximo de linhas a carregar (None = sem limite)
             smart_sample: Se True, faz amostragem inteligente em arquivos grandes
+            progress_callback: Callback(lines_read, estimated_total, lines_per_sec) chamado periodicamente
         """
         entries = []
+        start_time = time.time()
+        last_progress_time = start_time
 
         try:
             file_size = file_path.stat().st_size
@@ -243,12 +249,12 @@ class LogParser:
             # usa amostragem ao invés de carregar tudo
             use_sampling = False
             sample_rate = 1
+            estimated_total_lines = file_size // 100  # Estimativa: 100 bytes por linha
 
             if smart_sample and file_size > 500 * 1024 * 1024:  # 500MB
                 # Calcula taxa de amostragem para pegar ~100k linhas
-                estimated_lines = file_size // 100  # Estimativa: 100 bytes por linha
-                if estimated_lines > 100000:
-                    sample_rate = max(2, estimated_lines // 100000)
+                if estimated_total_lines > 100000:
+                    sample_rate = max(2, estimated_total_lines // 100000)
                     use_sampling = True
                     print(f"Info: Large file ({file_size // (1024*1024)}MB) - using smart sampling (1 in {sample_rate} lines)")
 
@@ -273,9 +279,13 @@ class LogParser:
                     entry.file_path = str(file_path)
                     entries.append(entry)
 
-                    # Mostra progresso a cada 50k linhas
-                    if len(entries) % 50000 == 0:
-                        print(f"  Loaded {len(entries):,} lines...")
+                    # Chama callback de progresso a cada 1000 linhas ou a cada 0.5 segundos
+                    current_time = time.time()
+                    if progress_callback and (len(entries) % 1000 == 0 or (current_time - last_progress_time) >= 0.5):
+                        elapsed = current_time - start_time
+                        lines_per_sec = int(len(entries) / elapsed) if elapsed > 0 else 0
+                        progress_callback(len(entries), estimated_total_lines, lines_per_sec)
+                        last_progress_time = current_time
 
         except Exception as e:
             # Retorna entrada de erro se falhar
@@ -285,6 +295,12 @@ class LogParser:
                 level=LogLevel.ERROR,
                 message=f"Error reading file: {e}"
             ))
+
+        # Callback final
+        if progress_callback and entries:
+            elapsed = time.time() - start_time
+            lines_per_sec = int(len(entries) / elapsed) if elapsed > 0 else 0
+            progress_callback(len(entries), len(entries), lines_per_sec)
 
         return entries
 
