@@ -30,8 +30,8 @@ class LoadingScreen(Screen):
     }
 
     #loading-container {
-        width: 60;
-        height: 15;
+        width: 70;
+        height: 20;
         border: heavy $primary;
         background: $surface;
         padding: 2;
@@ -48,10 +48,27 @@ class LoadingScreen(Screen):
         text-align: center;
         color: $text;
         margin-top: 1;
-        margin-bottom: 1;
+    }
+
+    #loading-file-info {
+        text-align: center;
+        color: $text-muted;
+        margin-top: 1;
+    }
+
+    #loading-line-info {
+        text-align: center;
+        color: $accent;
+        margin-top: 1;
     }
 
     #loading-details {
+        text-align: center;
+        color: $text-muted;
+        margin-top: 1;
+    }
+
+    .progress-label {
         text-align: center;
         color: $text-muted;
         margin-top: 1;
@@ -73,31 +90,59 @@ class LoadingScreen(Screen):
             with Vertical():
                 yield Label("📊 PyLoggerTUI", id="loading-title")
                 yield Label("Loading log files...", id="loading-status")
-                yield ProgressBar(total=100, show_eta=False, id="loading-progress")
+                yield Label("", id="loading-file-info")
+
+                # Barra de progresso de arquivos
+                yield Label("Files Progress:", classes="progress-label")
+                yield ProgressBar(total=100, show_eta=False, id="loading-progress-files")
+
+                # Barra de progresso de linhas do arquivo atual
+                yield Label("Current File:", classes="progress-label")
+                yield ProgressBar(total=100, show_eta=False, id="loading-progress-lines")
+
+                yield Label("", id="loading-line-info")
                 yield Label("", id="loading-details")
 
-    def update_progress(self, current: int, total: int, filename: str = ""):
+    def update_progress(self, current: int, total: int, filename: str = "",
+                       file_size_mb: float = 0, lines_read: int = 0,
+                       total_lines: int = 0, lines_per_sec: int = 0):
         """Atualiza o progresso."""
         self.current_file = current
-        progress_pct = int((current / total) * 100) if total > 0 else 0
 
         # Verifica se a tela está montada antes de atualizar
         if not self.is_mounted:
             return
 
-        # Atualiza barra de progresso
-        progress_bar = self.query_one("#loading-progress", ProgressBar)
-        progress_bar.update(progress=progress_pct)
+        # Progresso de arquivos
+        files_pct = int((current / total) * 100) if total > 0 else 0
+        progress_bar_files = self.query_one("#loading-progress-files", ProgressBar)
+        progress_bar_files.update(progress=files_pct)
+
+        # Progresso de linhas
+        lines_pct = int((lines_read / total_lines) * 100) if total_lines > 0 else 0
+        progress_bar_lines = self.query_one("#loading-progress-lines", ProgressBar)
+        progress_bar_lines.update(progress=lines_pct)
 
         # Atualiza status
         status_label = self.query_one("#loading-status", Label)
         status_label.update(f"Loading file {current}/{total}...")
 
-        # Atualiza detalhes
-        details_label = self.query_one("#loading-details", Label)
+        # Informações do arquivo
+        file_info_label = self.query_one("#loading-file-info", Label)
         if filename:
-            short_name = filename[-40:] if len(filename) > 40 else filename
-            details_label.update(f"📄 {short_name}")
+            short_name = filename[-50:] if len(filename) > 50 else filename
+            size_str = f"{file_size_mb:.1f}MB" if file_size_mb > 0 else ""
+            file_info_label.update(f"📄 {short_name} {size_str}")
+
+        # Informações de linhas
+        line_info_label = self.query_one("#loading-line-info", Label)
+        if lines_read > 0:
+            if total_lines > 0:
+                speed_str = f" • {lines_per_sec:,} lines/sec" if lines_per_sec > 0 else ""
+                line_info_label.update(f"📊 {lines_read:,} / ~{total_lines:,} lines ({lines_pct}%){speed_str}")
+            else:
+                speed_str = f" • {lines_per_sec:,} lines/sec" if lines_per_sec > 0 else ""
+                line_info_label.update(f"📊 {lines_read:,} lines{speed_str}")
 
 
 class SearchScreen(Screen):
@@ -279,7 +324,8 @@ class LogAnalyzerApp(App):
         self.load_files_worker = self.run_worker(self.load_all_files_async(), exclusive=True)
 
     @staticmethod
-    def load_single_file(path: Path, max_lines: Optional[int]) -> tuple[str, List[LogEntry]]:
+    def load_single_file(path: Path, max_lines: Optional[int],
+                        progress_callback=None) -> tuple[str, List[LogEntry]]:
         """Carrega um único arquivo (executado em thread separada)."""
         parser, config = LogParser.create_parser(path)
 
@@ -289,8 +335,10 @@ class LogAnalyzerApp(App):
 
         smart_sample = config.smart_sample if config else False
 
-        # Parse arquivo com limite de linhas e amostragem
-        entries = parser.parse_file(path, max_lines=max_lines, smart_sample=smart_sample)
+        # Parse arquivo com limite de linhas, amostragem e callback
+        entries = parser.parse_file(path, max_lines=max_lines,
+                                   smart_sample=smart_sample,
+                                   progress_callback=progress_callback)
         return (str(path), entries)
 
     async def load_all_files_async(self):
@@ -298,14 +346,65 @@ class LogAnalyzerApp(App):
         total = len(self.paths)
 
         for idx, path in enumerate(self.paths, 1):
-            # Atualiza progress na tela de loading
-            if hasattr(self, 'loading_screen') and self.loading_screen.is_mounted:
-                self.loading_screen.update_progress(idx, total, path.name)
+            # Estado compartilhado para progresso de linhas
+            progress_state = {'lines_read': 0, 'estimated_total': 0, 'lines_per_sec': 0}
 
-            # Carrega arquivo em thread separada para não bloquear UI
-            path_str, entries = await asyncio.to_thread(
-                self.load_single_file, path, None
+            # Callback para atualizar progresso de linhas (chamado da thread)
+            def progress_callback(lines_read: int, estimated_total: int, lines_per_sec: int):
+                progress_state['lines_read'] = lines_read
+                progress_state['estimated_total'] = estimated_total
+                progress_state['lines_per_sec'] = lines_per_sec
+
+            # Tamanho do arquivo
+            file_size_mb = path.stat().st_size / (1024 * 1024)
+
+            # Atualiza informações iniciais do arquivo
+            if hasattr(self, 'loading_screen') and self.loading_screen.is_mounted:
+                self.loading_screen.update_progress(
+                    current=idx,
+                    total=total,
+                    filename=path.name,
+                    file_size_mb=file_size_mb,
+                    lines_read=0,
+                    total_lines=0,
+                    lines_per_sec=0
+                )
+
+            # Task para carregar arquivo em thread separada
+            load_task = asyncio.create_task(
+                asyncio.to_thread(
+                    self.load_single_file, path, None, progress_callback
+                )
             )
+
+            # Enquanto carrega, atualiza UI com progresso de linhas
+            while not load_task.done():
+                await asyncio.sleep(0.1)  # Atualiza a cada 100ms
+                if hasattr(self, 'loading_screen') and self.loading_screen.is_mounted:
+                    self.loading_screen.update_progress(
+                        current=idx,
+                        total=total,
+                        filename=path.name,
+                        file_size_mb=file_size_mb,
+                        lines_read=progress_state['lines_read'],
+                        total_lines=progress_state['estimated_total'],
+                        lines_per_sec=progress_state['lines_per_sec']
+                    )
+
+            # Pega resultado
+            path_str, entries = await load_task
+
+            # Atualização final com 100%
+            if hasattr(self, 'loading_screen') and self.loading_screen.is_mounted:
+                self.loading_screen.update_progress(
+                    current=idx,
+                    total=total,
+                    filename=path.name,
+                    file_size_mb=file_size_mb,
+                    lines_read=len(entries),
+                    total_lines=len(entries),
+                    lines_per_sec=progress_state['lines_per_sec']
+                )
 
             # Armazena dados
             self.files_data[path_str] = entries
@@ -315,7 +414,7 @@ class LogAnalyzerApp(App):
                 self.log_viewers[path_str].load_entries(entries)
 
             # Pequena pausa para permitir UI atualizar
-            await asyncio.sleep(0)
+            await asyncio.sleep(0.2)
 
         # Atualiza dashboard
         if self.dashboard:
