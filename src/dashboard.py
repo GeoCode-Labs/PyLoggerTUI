@@ -4,8 +4,8 @@ Dashboard com visão geral e estatísticas dos logs.
 
 from datetime import datetime
 from textual.app import ComposeResult
-from textual.containers import Container, Vertical, Horizontal, ScrollableContainer
-from textual.widgets import Static, Label
+from textual.containers import Container, Vertical, Horizontal, ScrollableContainer, Grid
+from textual.widgets import Static, Label, DataTable, Button
 from rich.text import Text
 from rich.table import Table
 from rich.panel import Panel
@@ -84,44 +84,89 @@ class DashboardView(ScrollableContainer):
         return errors[:limit]
 
 
-class DashboardHeader(Static):
-    """Header do dashboard."""
+class DashboardHeader(Container):
+    """Header do dashboard moderno."""
+
+    DEFAULT_CSS = """
+    DashboardHeader {
+        height: auto;
+        padding: 1 2;
+        background: $primary;
+        border: heavy $accent;
+        margin-bottom: 1;
+    }
+
+    DashboardHeader .dashboard-title {
+        text-align: center;
+        text-style: bold;
+        color: $text;
+        content-align: center middle;
+    }
+
+    DashboardHeader .stats-grid {
+        height: auto;
+        grid-size: 2;
+        grid-gutter: 1;
+        padding: 1;
+    }
+
+    DashboardHeader .stat-card {
+        height: 3;
+        border: solid $accent;
+        background: $panel;
+        padding: 0 1;
+        text-align: center;
+        content-align: center middle;
+    }
+    """
 
     def __init__(self, num_files: int, num_entries: int, **kwargs):
         super().__init__(**kwargs)
         self.num_files = num_files
         self.num_entries = num_entries
 
-    def render(self) -> Text:
-        """Renderiza o header."""
-        text = Text()
-        text.append("=" * 80 + "\n", style="bold blue")
-        text.append(" LOG ANALYZER DASHBOARD ".center(80) + "\n", style="bold cyan")
-        text.append("=" * 80 + "\n", style="bold blue")
-        text.append(f"\n Files: {self.num_files}  |  Total Entries: {self.num_entries:,}\n\n", style="bold")
-        return text
+    def compose(self) -> ComposeResult:
+        """Compõe o header moderno."""
+        yield Label("📊 LOG ANALYZER DASHBOARD", classes="dashboard-title")
+        with Grid(classes="stats-grid"):
+            yield Label(f"📁 {self.num_files}\nFiles", classes="stat-card")
+            yield Label(f"📝 {self.num_entries:,}\nTotal Entries", classes="stat-card")
 
 
-class StatsOverview(Static):
-    """Visão geral das estatísticas."""
+class StatsOverview(Container):
+    """Visão geral das estatísticas com DataTable moderna."""
+
+    DEFAULT_CSS = """
+    StatsOverview {
+        height: auto;
+        border: solid $accent;
+        background: $panel;
+        margin-bottom: 1;
+        padding: 1;
+    }
+
+    StatsOverview > Label {
+        text-style: bold;
+        color: $accent;
+        margin-bottom: 1;
+    }
+
+    StatsOverview > DataTable {
+        height: auto;
+        max-height: 20;
+    }
+    """
 
     def __init__(self, stats: dict, **kwargs):
         super().__init__(**kwargs)
         self.stats = stats
 
-    def render(self) -> Table:
-        """Renderiza tabela de estatísticas."""
-        table = Table(
-            title="Overall Statistics",
-            show_header=True,
-            header_style="bold magenta",
-            border_style="blue",
-            expand=True
-        )
+    def compose(self) -> ComposeResult:
+        """Compõe a tabela de estatísticas."""
+        yield Label("📈 OVERALL STATISTICS")
 
-        table.add_column("Metric", style="cyan", width=30)
-        table.add_column("Value", justify="right", style="green", width=15)
-        table.add_column("Visual", width=35)
+        table = DataTable(zebra_stripes=True)
+        table.add_columns("Metric", "Value", "Visual")
 
         # Total
         total = self.stats['total']
@@ -130,35 +175,35 @@ class StatsOverview(Static):
         # Por nível com barra visual
         by_level = self.stats.get('by_level', {})
 
-        # Define cores por nível
-        level_colors = {
-            'ERROR': 'red',
-            'CRITICAL': 'bold red',
-            'WARNING': 'yellow',
-            'WARN': 'yellow',
-            'INFO': 'blue',
-            'SUCCESS': 'green',
-            'DEBUG': 'cyan',
+        # Define ícones e símbolos por nível
+        level_icons = {
+            'CRITICAL': '🔴',
+            'ERROR': '❌',
+            'WARNING': '⚠️',
+            'WARN': '⚠️',
+            'INFO': 'ℹ️',
+            'SUCCESS': '✅',
+            'DEBUG': '🐛',
         }
 
         for level in ['CRITICAL', 'ERROR', 'WARNING', 'WARN', 'INFO', 'SUCCESS', 'DEBUG']:
             if level in by_level:
                 count = by_level[level]
                 percentage = (count / total * 100) if total > 0 else 0
-                bar_length = int(percentage / 2)  # Max 50 chars
+                bar_length = int(percentage / 3)  # Max ~33 chars
                 bar = "█" * bar_length
 
-                color = level_colors.get(level, 'white')
+                icon = level_icons.get(level, '•')
                 table.add_row(
-                    f"{level} Logs",
+                    f"{icon} {level} Logs",
                     f"{count:,}",
-                    f"[{color}]{bar}[/] {percentage:.1f}%"
+                    f"{bar} {percentage:.1f}%"
                 )
 
         # Outros stats
-        table.add_row("", "", "")
+        table.add_row("─" * 20, "─" * 10, "─" * 30)
         table.add_row(
-            "With Timestamp",
+            "⏰ With Timestamp",
             f"{self.stats.get('with_timestamp', 0):,}",
             ""
         )
@@ -166,35 +211,48 @@ class StatsOverview(Static):
         tracebacks = self.stats.get('tracebacks', 0)
         if tracebacks > 0:
             table.add_row(
-                "Tracebacks Detected",
+                "🔥 Tracebacks Detected",
                 f"{tracebacks:,}",
-                f"[red]{'!' * min(tracebacks, 20)}[/]"
+                "!" * min(tracebacks, 20)
             )
 
-        return table
+        yield table
 
 
-class FilesOverview(Static):
-    """Visão geral dos arquivos."""
+class FilesOverview(Container):
+    """Visão geral dos arquivos com DataTable moderna."""
+
+    DEFAULT_CSS = """
+    FilesOverview {
+        height: auto;
+        border: solid $accent;
+        background: $panel;
+        margin-bottom: 1;
+        padding: 1;
+    }
+
+    FilesOverview > Label {
+        text-style: bold;
+        color: $accent;
+        margin-bottom: 1;
+    }
+
+    FilesOverview > DataTable {
+        height: auto;
+        max-height: 15;
+    }
+    """
 
     def __init__(self, files_data: Dict[str, List[LogEntry]], **kwargs):
         super().__init__(**kwargs)
         self.files_data = files_data
 
-    def render(self) -> Table:
-        """Renderiza tabela de arquivos."""
-        table = Table(
-            title="Files Overview",
-            show_header=True,
-            header_style="bold magenta",
-            border_style="blue",
-            expand=True
-        )
+    def compose(self) -> ComposeResult:
+        """Compõe a tabela de arquivos."""
+        yield Label("📁 FILES OVERVIEW")
 
-        table.add_column("File", style="cyan", width=40)
-        table.add_column("Entries", justify="right", style="green", width=10)
-        table.add_column("Errors", justify="right", style="red", width=10)
-        table.add_column("Warnings", justify="right", style="yellow", width=10)
+        table = DataTable(zebra_stripes=True, cursor_type="row")
+        table.add_columns("File", "Entries", "Errors", "Warnings", "Status")
 
         for file_path, entries in self.files_data.items():
             file_name = Path(file_path).name
@@ -209,60 +267,111 @@ class FilesOverview(Static):
                 if e.level in [LogLevel.WARNING, LogLevel.WARN]
             )
 
+            # Define status com ícone
+            if errors > 0:
+                status = "❌ Issues"
+            elif warnings > 0:
+                status = "⚠️ Warnings"
+            else:
+                status = "✅ OK"
+
             table.add_row(
-                file_name,
+                f"📄 {file_name}",
                 f"{len(entries):,}",
                 f"{errors:,}" if errors > 0 else "-",
-                f"{warnings:,}" if warnings > 0 else "-"
+                f"{warnings:,}" if warnings > 0 else "-",
+                status
             )
 
-        return table
+        yield table
 
 
-class RecentErrors(Static):
-    """Lista dos erros mais recentes."""
+class RecentErrors(Container):
+    """Lista dos erros mais recentes com DataTable moderna."""
+
+    DEFAULT_CSS = """
+    RecentErrors {
+        height: auto;
+        border: heavy $error;
+        background: $panel;
+        margin-bottom: 1;
+        padding: 1;
+    }
+
+    RecentErrors > Label {
+        text-style: bold;
+        color: $error;
+        margin-bottom: 1;
+    }
+
+    RecentErrors > DataTable {
+        height: auto;
+        max-height: 15;
+    }
+    """
 
     def __init__(self, errors: List[LogEntry], **kwargs):
         super().__init__(**kwargs)
         self.errors = errors
 
-    def render(self) -> Table:
-        """Renderiza tabela de erros recentes."""
-        table = Table(
-            title="Recent Errors",
-            show_header=True,
-            header_style="bold red",
-            border_style="red",
-            expand=True
-        )
+    def compose(self) -> ComposeResult:
+        """Compõe a tabela de erros recentes."""
+        yield Label("🔥 RECENT ERRORS")
 
-        table.add_column("Time", style="cyan", width=20)
-        table.add_column("Level", style="red", width=10)
-        table.add_column("Message", style="white")
+        table = DataTable(zebra_stripes=True, cursor_type="row")
+        table.add_columns("Time", "Level", "Message")
 
         for error in self.errors:
             time_str = error.timestamp.strftime("%Y-%m-%d %H:%M:%S") if error.timestamp else "N/A"
             message = error.message[:80] + "..." if len(error.message) > 80 else error.message
 
+            # Ícone baseado no level
+            level_icon = "🔴" if error.level == LogLevel.CRITICAL else "❌"
+
             table.add_row(
-                time_str,
-                error.level.value,
+                f"⏰ {time_str}",
+                f"{level_icon} {error.level.value}",
                 message
             )
 
-        return table
+        yield table
 
 
-class ErrorsByLocation(Static):
+class ErrorsByLocation(Container):
     """Tabela mostrando erros agrupados por localização no código."""
+
+    DEFAULT_CSS = """
+    ErrorsByLocation {
+        height: auto;
+        border: solid $warning;
+        background: $panel;
+        margin-bottom: 1;
+        padding: 1;
+    }
+
+    ErrorsByLocation > Label {
+        text-style: bold;
+        color: $warning;
+        margin-bottom: 1;
+    }
+
+    ErrorsByLocation > DataTable {
+        height: auto;
+        max-height: 18;
+    }
+    """
 
     def __init__(self, entries: List[LogEntry], **kwargs):
         super().__init__(**kwargs)
         self.entries = entries
 
-    def render(self) -> Table:
-        """Renderiza tabela de erros por localização."""
+    def compose(self) -> ComposeResult:
+        """Compõe a tabela de erros por localização."""
         from collections import Counter
+
+        yield Label("📍 ERRORS BY CODE LOCATION")
+
+        table = DataTable(zebra_stripes=True, cursor_type="row")
 
         # Filtra apenas erros e críticos que tem localização
         errors_with_location = [
@@ -271,36 +380,15 @@ class ErrorsByLocation(Static):
         ]
 
         if not errors_with_location:
-            # Se não houver erros com localização, retorna tabela vazia com mensagem
-            table = Table(
-                title="Errors by Code Location",
-                show_header=True,
-                header_style="bold red",
-                border_style="red",
-                expand=True
-            )
-            table.add_column("Location", style="cyan")
-            table.add_column("Count", justify="right", style="red")
-            table.add_row("No errors with location info", "-")
-            return table
+            table.add_columns("Message")
+            table.add_row("No errors with location info")
+            yield table
+            return
 
         # Conta erros por localização
         location_counter = Counter(e.location for e in errors_with_location)
 
-        # Cria tabela
-        table = Table(
-            title="Errors by Code Location",
-            show_header=True,
-            header_style="bold red",
-            border_style="red",
-            expand=True
-        )
-
-        table.add_column("Location", style="cyan", width=50)
-        table.add_column("Module", style="yellow", width=25)
-        table.add_column("Function", style="green", width=20)
-        table.add_column("Line", justify="right", style="blue", width=8)
-        table.add_column("Count", justify="right", style="bold red", width=8)
+        table.add_columns("Location", "Module", "Function", "Line", "Count")
 
         # Adiciona as top 15 localizações com mais erros
         for location, count in location_counter.most_common(15):
@@ -308,14 +396,14 @@ class ErrorsByLocation(Static):
             entry = next((e for e in errors_with_location if e.location == location), None)
             if entry:
                 table.add_row(
-                    location,
+                    f"📌 {location}",
                     entry.module or "-",
                     entry.function or "-",
                     str(entry.code_line) if entry.code_line else "-",
-                    str(count)
+                    f"🔢 {count}"
                 )
 
-        return table
+        yield table
 
 
 class ChartsSection(Static):

@@ -3,8 +3,9 @@ Widgets customizados para o Log Analyzer TUI.
 """
 
 from textual.app import ComposeResult
-from textual.widgets import Static, Label, RichLog
-from textual.containers import Container, Vertical, Horizontal
+from textual.widgets import Static, Label, RichLog, Button
+from textual.containers import Container, Vertical, Horizontal, VerticalScroll
+from textual.message import Message
 from rich.text import Text
 from rich.table import Table
 from typing import List, Optional
@@ -210,8 +211,51 @@ class LogViewer(RichLog):
         return colors.get(level, "white")
 
 
-class StatsBar(Static):
-    """Barra de estatísticas no rodapé."""
+class StatsBar(Container):
+    """Barra de estatísticas moderna no rodapé."""
+
+    DEFAULT_CSS = """
+    StatsBar {
+        height: auto;
+        layout: horizontal;
+    }
+
+    StatsBar .stat-item {
+        width: auto;
+        height: 1;
+        padding: 0 2;
+        text-align: center;
+        content-align: center middle;
+    }
+
+    StatsBar .stat-total {
+        background: $primary;
+        color: $text;
+        text-style: bold;
+    }
+
+    StatsBar .stat-error {
+        background: $error;
+        color: $text;
+        text-style: bold;
+    }
+
+    StatsBar .stat-warning {
+        background: $warning;
+        color: $text;
+        text-style: bold;
+    }
+
+    StatsBar .stat-info {
+        background: $accent;
+        color: $text;
+    }
+
+    StatsBar .stat-success {
+        background: $success;
+        color: $text;
+    }
+    """
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -220,40 +264,45 @@ class StatsBar(Static):
     def update_stats(self, stats: dict):
         """Atualiza as estatísticas exibidas."""
         self.stats = stats
-        self.refresh()
+        self.refresh_display()
 
-    def render(self) -> Text:
-        """Renderiza a barra de estatísticas."""
-        text = Text()
+    def refresh_display(self):
+        """Atualiza a exibição das estatísticas."""
+        self.remove_children()
+        self.mount_all(self.compose())
+
+    def compose(self) -> ComposeResult:
+        """Compõe a barra de estatísticas."""
+        if not self.stats:
+            yield Label("No data loaded", classes="stat-item stat-total")
+            return
 
         total = self.stats.get('total', 0)
-        text.append(f" Total: {total} ", style="bold")
+        yield Label(f"📊 Total: {total:,}", classes="stat-item stat-total")
 
         # Stats por nível
         by_level = self.stats.get('by_level', {})
 
         if 'ERROR' in by_level or 'CRITICAL' in by_level:
             errors = by_level.get('ERROR', 0) + by_level.get('CRITICAL', 0)
-            text.append(f"  Errors: {errors} ", style="bold red")
+            yield Label(f"❌ Errors: {errors:,}", classes="stat-item stat-error")
 
         if 'WARNING' in by_level or 'WARN' in by_level:
             warnings = by_level.get('WARNING', 0) + by_level.get('WARN', 0)
-            text.append(f"  Warnings: {warnings} ", style="bold yellow")
+            yield Label(f"⚠️ Warnings: {warnings:,}", classes="stat-item stat-warning")
 
         if 'INFO' in by_level:
             info = by_level.get('INFO', 0)
-            text.append(f"  Info: {info} ", style="bold blue")
+            yield Label(f"ℹ️ Info: {info:,}", classes="stat-item stat-info")
 
         if 'SUCCESS' in by_level:
             success = by_level.get('SUCCESS', 0)
-            text.append(f"  Success: {success} ", style="bold green")
+            yield Label(f"✅ Success: {success:,}", classes="stat-item stat-success")
 
         # Tracebacks
         tracebacks = self.stats.get('tracebacks', 0)
         if tracebacks > 0:
-            text.append(f"  Tracebacks: {tracebacks} ", style="bold red")
-
-        return text
+            yield Label(f"🔥 Tracebacks: {tracebacks:,}", classes="stat-item stat-error")
 
 
 class FilterBar(Horizontal):
@@ -312,3 +361,106 @@ class LogStats(Container):
         )
 
         yield Static(table)
+
+
+class FilterSidebar(Container):
+    """Sidebar moderna com controles de filtro e ações."""
+
+    DEFAULT_CSS = """
+    FilterSidebar {
+        width: 22;
+        height: 1fr;
+        border: heavy $accent;
+        background: $panel;
+        padding: 1;
+        dock: left;
+    }
+
+    FilterSidebar > Label {
+        text-style: bold;
+        color: $accent;
+        text-align: center;
+        margin-bottom: 1;
+    }
+
+    FilterSidebar .filter-section {
+        height: auto;
+        margin-bottom: 1;
+    }
+
+    FilterSidebar .section-title {
+        text-style: bold;
+        color: $text-muted;
+        margin-top: 1;
+        margin-bottom: 1;
+    }
+
+    FilterSidebar Button {
+        width: 100%;
+        margin-bottom: 1;
+    }
+
+    FilterSidebar .filter-error {
+        background: $error;
+    }
+
+    FilterSidebar .filter-warning {
+        background: $warning;
+    }
+
+    FilterSidebar .filter-info {
+        background: $accent;
+    }
+
+    FilterSidebar .filter-all {
+        background: $success;
+    }
+
+    FilterSidebar .action-button {
+        background: $primary;
+    }
+    """
+
+    class FilterChanged(Message):
+        """Mensagem enviada quando um filtro é alterado."""
+
+        def __init__(self, level: Optional[LogLevel]) -> None:
+            super().__init__()
+            self.level = level
+
+    class SortToggled(Message):
+        """Mensagem enviada quando a ordenação é alternada."""
+        pass
+
+    def compose(self) -> ComposeResult:
+        """Compõe a sidebar."""
+        yield Label("🎛️ CONTROLS")
+
+        with Vertical(classes="filter-section"):
+            yield Label("FILTERS", classes="section-title")
+            yield Button("❌ Errors", id="filter-errors", classes="filter-error")
+            yield Button("⚠️ Warnings", id="filter-warnings", classes="filter-warning")
+            yield Button("ℹ️ Info", id="filter-info", classes="filter-info")
+            yield Button("✨ All Logs", id="filter-all", classes="filter-all")
+
+        with Vertical(classes="filter-section"):
+            yield Label("ACTIONS", classes="section-title")
+            yield Button("🔄 Sort by Date", id="sort-date", classes="action-button")
+            yield Button("🔍 Search", id="search", classes="action-button")
+            yield Button("📊 Dashboard", id="dashboard", classes="action-button")
+            yield Button("🔃 Reload", id="reload", classes="action-button")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Quando um botão é pressionado."""
+        button_id = event.button.id
+
+        if button_id == "filter-errors":
+            self.post_message(self.FilterChanged(LogLevel.ERROR))
+        elif button_id == "filter-warnings":
+            self.post_message(self.FilterChanged(LogLevel.WARNING))
+        elif button_id == "filter-info":
+            self.post_message(self.FilterChanged(LogLevel.INFO))
+        elif button_id == "filter-all":
+            self.post_message(self.FilterChanged(None))
+        elif button_id == "sort-date":
+            self.post_message(self.SortToggled())

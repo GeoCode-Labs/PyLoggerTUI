@@ -9,7 +9,7 @@ import asyncio
 from pathlib import Path
 from typing import List, Dict, Optional
 from textual.app import App, ComposeResult
-from textual.widgets import Header, Footer, TabbedContent, TabPane, Input, Static, Label, ProgressBar
+from textual.widgets import Header, Footer, TabbedContent, TabPane, Input, Static, Label, ProgressBar, Button
 from textual.containers import Container, Vertical, Horizontal, Center
 from textual.binding import Binding
 from textual.screen import Screen
@@ -17,7 +17,7 @@ from textual.worker import Worker, WorkerState
 from rich.text import Text
 
 from .parser import LogParser, LogEntry, LogLevel
-from .widgets import LogViewer, StatsBar
+from .widgets import LogViewer, StatsBar, FilterSidebar
 from .dashboard import DashboardView
 
 
@@ -183,57 +183,95 @@ class LogAnalyzerApp(App):
     CSS = """
     Screen {
         background: $surface;
+        layers: base overlay;
     }
 
     Header {
         background: $primary;
         color: $text;
+        text-style: bold;
+        height: 3;
+        content-align: center middle;
+        border-bottom: heavy $accent;
     }
 
     Footer {
         background: $panel;
+        border-top: solid $accent;
     }
 
     TabbedContent {
         height: 1fr;
+        background: $surface;
     }
 
     TabPane {
-        padding: 0;
+        padding: 1;
+        background: $surface;
+    }
+
+    Tabs {
+        background: $panel;
+        border: solid $accent;
+    }
+
+    Tab {
+        background: $panel;
+        color: $text-muted;
+    }
+
+    Tab.-active {
+        background: $primary;
+        color: $text;
+        text-style: bold;
     }
 
     LogViewer {
         height: 1fr;
-        border: solid $primary;
+        border: heavy $accent;
+        background: $surface;
+        padding: 1;
     }
 
     StatsBar {
         dock: bottom;
-        height: 1;
+        height: 3;
         background: $panel;
         color: $text;
+        border-top: heavy $accent;
+        padding: 1;
+        text-align: center;
     }
 
     .search-header {
-        height: 1;
+        height: 3;
         padding: 1;
         background: $primary;
         color: $text;
+        text-style: bold;
+        border-bottom: solid $accent;
     }
 
     #search-input {
         margin: 1;
+        border: solid $accent;
     }
 
     DashboardView {
         height: 1fr;
         padding: 1;
+        background: $surface;
     }
 
     .dashboard-empty {
         height: 100%;
         content-align: center middle;
         text-style: bold;
+        color: $text-muted;
+    }
+
+    #main-content {
+        height: 1fr;
     }
     """
 
@@ -262,6 +300,7 @@ class LogAnalyzerApp(App):
         self.log_viewers: Dict[str, LogViewer] = {}
         self.stats_bar: Optional[StatsBar] = None
         self.dashboard: Optional[DashboardView] = None
+        self.sidebar: Optional[FilterSidebar] = None
 
         # Expande diretórios para arquivos .log
         self.paths = self._expand_paths(paths)
@@ -286,22 +325,28 @@ class LogAnalyzerApp(App):
         """Compõe a interface."""
         yield Header()
 
-        # TabbedContent com os arquivos
-        with TabbedContent(id="tabs"):
-            # Dashboard tab
-            with TabPane("Dashboard", id="dashboard-tab"):
-                self.dashboard = DashboardView()
-                yield self.dashboard
+        # Sidebar com controles
+        self.sidebar = FilterSidebar()
+        yield self.sidebar
 
-            # Tabs para cada arquivo
-            for path in self.paths:
-                file_name = path.name
-                # Cria ID válido (sem pontos, que não são permitidos)
-                safe_id = f"file-{file_name.replace('.', '_')}"
-                with TabPane(file_name, id=safe_id):
-                    log_viewer = LogViewer()
-                    self.log_viewers[str(path)] = log_viewer
-                    yield log_viewer
+        # Container principal com as tabs
+        with Container(id="main-content"):
+            # TabbedContent com os arquivos
+            with TabbedContent(id="tabs"):
+                # Dashboard tab
+                with TabPane("📊 Dashboard", id="dashboard-tab"):
+                    self.dashboard = DashboardView()
+                    yield self.dashboard
+
+                # Tabs para cada arquivo
+                for path in self.paths:
+                    file_name = path.name
+                    # Cria ID válido (sem pontos, que não são permitidos)
+                    safe_id = f"file-{file_name.replace('.', '_')}"
+                    with TabPane(f"📄 {file_name}", id=safe_id):
+                        log_viewer = LogViewer()
+                        self.log_viewers[str(path)] = log_viewer
+                        yield log_viewer
 
         # Barra de estatísticas
         self.stats_bar = StatsBar()
@@ -534,6 +579,38 @@ class LogAnalyzerApp(App):
             # Similar ao next_tab
         except Exception:
             pass
+
+    def on_filter_sidebar_filter_changed(self, message: FilterSidebar.FilterChanged) -> None:
+        """Quando o filtro da sidebar é alterado."""
+        viewer = self.get_current_viewer()
+        if viewer:
+            viewer.apply_filter(message.level)
+            if message.level is None:
+                self.notify("✨ Showing ALL logs", severity="information")
+            else:
+                self.notify(f"Filtering: {message.level.value}", severity="information")
+        else:
+            self.notify("Filters only work on log tabs", severity="warning")
+
+    def on_filter_sidebar_sort_toggled(self, message: FilterSidebar.SortToggled) -> None:
+        """Quando a ordenação é alternada."""
+        viewer = self.get_current_viewer()
+        if viewer:
+            status_msg = viewer.toggle_sort_by_date()
+            self.notify(status_msg, severity="information")
+        else:
+            self.notify("Sort only works on log tabs", severity="warning")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Quando um botão é pressionado."""
+        button_id = event.button.id
+
+        if button_id == "search":
+            self.action_search()
+        elif button_id == "dashboard":
+            self.action_show_dashboard()
+        elif button_id == "reload":
+            self.action_reload()
 
 
 def main():
