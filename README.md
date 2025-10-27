@@ -117,13 +117,43 @@ uv run python -m src.main --help
 
 PyLoggerTUI suporta formatos de log customizados através de um arquivo `config.yml` na mesma pasta dos logs.
 
-### Exemplo de config.yml
+### ⚠️ IMPORTANTE: O formato deve corresponder EXATAMENTE aos seus logs!
+
+O formato no `config.yml` precisa corresponder **exatamente** ao formato dos seus logs, incluindo espaços, separadores e pontuação.
+
+### Exemplo para Loguru (formato padrão)
+
+Se seus logs são assim:
+```
+2025-10-14 21:49:52.136 | DEBUG    | src.config.mongo:_close:40 - Mongo connection closed.
+```
+
+Use este `config.yml`:
+```yaml
+# Formato corresponde exatamente ao log
+format: "{time} | {level} | {module}:{function}:{line} - {message}"
+
+# Data com microsegundos (.136)
+date_format: "%Y-%m-%d %H:%M:%S.%f"
+```
+
+### Exemplo para formato com processo
+
+Se seus logs têm ID do processo:
+```
+[ 2025-10-14 14:30:00 | process: 1234 | INFO    ] myapp.main:42 Application started
+```
+
+Use este `config.yml`:
+```yaml
+format: "[ {time} | process: {process.id} | {level: <8}] {module}.{function}:{line} {message}"
+date_format: "%Y-%m-%d %H:%M:%S"
+```
+
+### Exemplo simples (padrão)
 
 ```yaml
-# Formato do log com placeholders
-format: "[ {time} | process: {process.id} | {level: <8}] {module}.{function}:{line} {message}"
-
-# Formato de data (opcional)
+format: "[{timestamp}] {level} | {message}"
 date_format: "%Y-%m-%d %H:%M:%S"
 ```
 

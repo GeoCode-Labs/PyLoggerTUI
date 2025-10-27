@@ -1,0 +1,10 @@
+# PyLoggerTUI Configuration File
+# Configuração para logs no formato Loguru
+
+# Formato do log (deve corresponder EXATAMENTE ao formato dos logs)
+# Formato real dos seus logs:
+# 2025-10-14 21:49:52.136 | DEBUG    | src.config.mongo:_close:40 - Mongo connection closed.
+format: "{time} | {level} | {module}:{function}:{line} - {message}"
+
+# Formato de data (com microsegundos)
+date_format: "%Y-%m-%d %H:%M:%S.%f"
