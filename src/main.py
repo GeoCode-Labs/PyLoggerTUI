@@ -5,6 +5,7 @@ Aplicação principal do visualizador de logs interativo.
 
 import sys
 import argparse
+import asyncio
 from pathlib import Path
 from typing import List, Dict, Optional
 from textual.app import App, ComposeResult
@@ -84,23 +85,19 @@ class LoadingScreen(Screen):
         if not self.is_mounted:
             return
 
-        try:
-            # Atualiza barra de progresso
-            progress_bar = self.query_one("#loading-progress", ProgressBar)
-            progress_bar.update(progress=progress_pct)
+        # Atualiza barra de progresso
+        progress_bar = self.query_one("#loading-progress", ProgressBar)
+        progress_bar.update(progress=progress_pct)
 
-            # Atualiza status
-            status_label = self.query_one("#loading-status", Label)
-            status_label.update(f"Loading file {current}/{total}...")
+        # Atualiza status
+        status_label = self.query_one("#loading-status", Label)
+        status_label.update(f"Loading file {current}/{total}...")
 
-            # Atualiza detalhes
-            details_label = self.query_one("#loading-details", Label)
-            if filename:
-                short_name = filename[-40:] if len(filename) > 40 else filename
-                details_label.update(f"📄 {short_name}")
-        except Exception:
-            # Se ainda não montou, ignora
-            pass
+        # Atualiza detalhes
+        details_label = self.query_one("#loading-details", Label)
+        if filename:
+            short_name = filename[-40:] if len(filename) > 40 else filename
+            details_label.update(f"📄 {short_name}")
 
 
 class SearchScreen(Screen):
@@ -302,11 +299,11 @@ class LogAnalyzerApp(App):
 
         for idx, path in enumerate(self.paths, 1):
             # Atualiza progress na tela de loading
-            if hasattr(self, 'loading_screen'):
+            if hasattr(self, 'loading_screen') and self.loading_screen.is_mounted:
                 self.loading_screen.update_progress(idx, total, path.name)
 
-            # Carrega arquivo (bloqueia essa thread mas não a UI)
-            path_str, entries = await self.run_in_thread(
+            # Carrega arquivo em thread separada para não bloquear UI
+            path_str, entries = await asyncio.to_thread(
                 self.load_single_file, path, None
             )
 
@@ -316,6 +313,9 @@ class LogAnalyzerApp(App):
             # Carrega no viewer correspondente
             if path_str in self.log_viewers:
                 self.log_viewers[path_str].load_entries(entries)
+
+            # Pequena pausa para permitir UI atualizar
+            await asyncio.sleep(0)
 
         # Atualiza dashboard
         if self.dashboard:
