@@ -79,26 +79,42 @@ class LogParser:
         self.custom_date_format = date_format
 
     # Padrões de regex para diferentes formatos de log
+    # Ordem: mais específicos primeiro para melhor performance
     DEFAULT_PATTERNS = [
-        # [2025-10-24 14:09:25] INFO | Message
+        # 2025-10-24 14:09:25.123 | INFO | Message (Loguru style com microsegundos)
+        re.compile(
+            r'(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d+)\s*\|\s*'
+            r'(?P<level>\w+)\s*\|\s*(?P<message>.*)'
+        ),
+        # [2025-10-24 14:09:25.123] INFO | Message (com microsegundos)
+        re.compile(
+            r'\[(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?)\]\s*'
+            r'(?P<level>\w+)\s*[\|\:]\s*(?P<message>.*)'
+        ),
+        # 2025-10-24 14:09:25.123 - INFO - Message (com microsegundos)
+        re.compile(
+            r'(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?)\s*-\s*'
+            r'(?P<level>\w+)\s*-\s*(?P<message>.*)'
+        ),
+        # [2025-10-24 14:09:25] INFO | Message (sem microsegundos)
         re.compile(
             r'\[(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\]\s*'
             r'(?P<level>\w+)\s*[\|\:]\s*(?P<message>.*)'
         ),
-        # 2025-10-24 14:09:25 - INFO - Message
+        # 2025-10-24 14:09:25 - INFO - Message (sem microsegundos)
         re.compile(
             r'(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s*-\s*'
             r'(?P<level>\w+)\s*-\s*(?P<message>.*)'
-        ),
-        # INFO: Message (simples)
-        re.compile(
-            r'(?P<level>DEBUG|INFO|WARNING|WARN|ERROR|CRITICAL|SUCCESS)\s*[\:\|]\s*'
-            r'(?P<message>.*)'
         ),
         # Timestamp ISO: 2025-10-24T14:09:25.123Z INFO Message
         re.compile(
             r'(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)\s+'
             r'(?P<level>\w+)\s+(?P<message>.*)'
+        ),
+        # INFO: Message (simples, sem timestamp)
+        re.compile(
+            r'(?P<level>DEBUG|INFO|WARNING|WARN|ERROR|CRITICAL|SUCCESS)\s*[\:\|]\s*'
+            r'(?P<message>.*)'
         ),
     ]
 
@@ -279,9 +295,10 @@ class LogParser:
                     entry.file_path = str(file_path)
                     entries.append(entry)
 
-                    # Chama callback de progresso a cada 1000 linhas ou a cada 0.5 segundos
+                    # Chama callback de progresso a cada 5000 linhas ou a cada 1 segundo
+                    # Reduzido para melhor performance (menos overhead)
                     current_time = time.time()
-                    if progress_callback and (len(entries) % 1000 == 0 or (current_time - last_progress_time) >= 0.5):
+                    if progress_callback and (len(entries) % 5000 == 0 or (current_time - last_progress_time) >= 1.0):
                         elapsed = current_time - start_time
                         lines_per_sec = int(len(entries) / elapsed) if elapsed > 0 else 0
                         progress_callback(len(entries), estimated_total_lines, lines_per_sec)
@@ -305,23 +322,104 @@ class LogParser:
         return entries
 
     @staticmethod
+    def auto_detect_format(file_path: Path, sample_lines: int = 100) -> Optional[tuple[re.Pattern, str]]:
+        """
+        Tenta detectar automaticamente o formato do log lendo as primeiras linhas.
+
+        Returns:
+            Tupla (pattern, date_format) ou None se não detectar
+        """
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                # Lê primeiras linhas para análise
+                sample = []
+                for i, line in enumerate(f):
+                    if i >= sample_lines:
+                        break
+                    sample.append(line.strip())
+
+                if not sample:
+                    return None
+
+                # Testa cada padrão default e conta matches
+                parser = LogParser()
+                pattern_scores = {}
+
+                for idx, pattern in enumerate(parser.DEFAULT_PATTERNS):
+                    matches = 0
+                    has_timestamp = False
+
+                    for line in sample:
+                        match = pattern.search(line)
+                        if match:
+                            matches += 1
+                            if 'timestamp' in match.groupdict():
+                                has_timestamp = True
+
+                    # Score: número de matches + bonus se tem timestamp
+                    score = matches + (50 if has_timestamp else 0)
+                    if score > 0:
+                        pattern_scores[idx] = score
+
+                if not pattern_scores:
+                    return None
+
+                # Pega o padrão com maior score
+                best_idx = max(pattern_scores, key=pattern_scores.get)
+                best_pattern = parser.DEFAULT_PATTERNS[best_idx]
+
+                # Detecta formato de data baseado no primeiro match
+                for line in sample:
+                    match = best_pattern.search(line)
+                    if match and 'timestamp' in match.groupdict():
+                        ts = match.group('timestamp')
+                        # Detecta se tem microsegundos
+                        if '.' in ts:
+                            if 'T' in ts:
+                                date_format = "%Y-%m-%dT%H:%M:%S.%f"
+                            else:
+                                date_format = "%Y-%m-%d %H:%M:%S.%f"
+                        else:
+                            if 'T' in ts:
+                                date_format = "%Y-%m-%dT%H:%M:%S"
+                            else:
+                                date_format = "%Y-%m-%d %H:%M:%S"
+
+                        return (best_pattern, date_format)
+
+                return (best_pattern, "%Y-%m-%d %H:%M:%S")
+
+        except Exception:
+            return None
+
+    @staticmethod
     def create_parser(file_path: Path) -> tuple['LogParser', Optional['LogConfig']]:
         """
         Cria um parser apropriado para o arquivo.
         Procura por config.yml na mesma pasta do arquivo.
+        Se não encontrar, tenta detectar automaticamente.
 
         Returns:
             Tupla (parser, config) onde config pode ser None
         """
         from .config import ConfigLoader, LogConfig
 
+        # Primeiro tenta carregar config explícito
         config = ConfigLoader.find_config(file_path)
         if config:
             pattern = config.to_regex()
             parser = LogParser(custom_pattern=pattern, date_format=config.date_format)
             return (parser, config)
-        else:
-            return (LogParser(), None)
+
+        # Se não tem config, tenta auto-detectar
+        detected = LogParser.auto_detect_format(file_path)
+        if detected:
+            pattern, date_format = detected
+            parser = LogParser(custom_pattern=pattern, date_format=date_format)
+            return (parser, None)
+
+        # Fallback: parser padrão
+        return (LogParser(), None)
 
     @classmethod
     def get_log_stats(cls, entries: List[LogEntry]) -> dict:
