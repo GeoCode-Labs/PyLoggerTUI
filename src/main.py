@@ -378,8 +378,9 @@ class LogAnalyzerApp(App):
             )
 
             # Enquanto carrega, atualiza UI com progresso de linhas
+            # Reduzido para 500ms para melhor performance (5x menos updates)
             while not load_task.done():
-                await asyncio.sleep(0.1)  # Atualiza a cada 100ms
+                await asyncio.sleep(0.5)  # Atualiza a cada 500ms
                 if hasattr(self, 'loading_screen') and self.loading_screen.is_mounted:
                     self.loading_screen.update_progress(
                         current=idx,
