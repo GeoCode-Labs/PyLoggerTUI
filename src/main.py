@@ -8,15 +8,91 @@ import argparse
 from pathlib import Path
 from typing import List, Dict, Optional
 from textual.app import App, ComposeResult
-from textual.widgets import Header, Footer, TabbedContent, TabPane, Input, Static
-from textual.containers import Container, Vertical, Horizontal
+from textual.widgets import Header, Footer, TabbedContent, TabPane, Input, Static, Label, ProgressBar
+from textual.containers import Container, Vertical, Horizontal, Center
 from textual.binding import Binding
 from textual.screen import Screen
+from textual.worker import Worker, WorkerState
 from rich.text import Text
 
 from .parser import LogParser, LogEntry, LogLevel
 from .widgets import LogViewer, StatsBar
 from .dashboard import DashboardView
+
+
+class LoadingScreen(Screen):
+    """Tela de loading durante carregamento dos arquivos."""
+
+    CSS = """
+    LoadingScreen {
+        align: center middle;
+    }
+
+    #loading-container {
+        width: 60;
+        height: 15;
+        border: heavy $primary;
+        background: $surface;
+        padding: 2;
+    }
+
+    #loading-title {
+        text-align: center;
+        text-style: bold;
+        color: $primary;
+        margin-bottom: 1;
+    }
+
+    #loading-status {
+        text-align: center;
+        color: $text;
+        margin-top: 1;
+        margin-bottom: 1;
+    }
+
+    #loading-details {
+        text-align: center;
+        color: $text-muted;
+        margin-top: 1;
+    }
+
+    ProgressBar {
+        margin-top: 1;
+    }
+    """
+
+    def __init__(self, total_files: int, **kwargs):
+        super().__init__(**kwargs)
+        self.total_files = total_files
+        self.current_file = 0
+
+    def compose(self) -> ComposeResult:
+        """Compõe a tela de loading."""
+        with Center(id="loading-container"):
+            with Vertical():
+                yield Label("📊 PyLoggerTUI", id="loading-title")
+                yield Label("Loading log files...", id="loading-status")
+                yield ProgressBar(total=100, show_eta=False, id="loading-progress")
+                yield Label("", id="loading-details")
+
+    def update_progress(self, current: int, total: int, filename: str = ""):
+        """Atualiza o progresso."""
+        self.current_file = current
+        progress_pct = int((current / total) * 100) if total > 0 else 0
+
+        # Atualiza barra de progresso
+        progress_bar = self.query_one("#loading-progress", ProgressBar)
+        progress_bar.update(progress=progress_pct)
+
+        # Atualiza status
+        status_label = self.query_one("#loading-status", Label)
+        status_label.update(f"Loading file {current}/{total}...")
+
+        # Atualiza detalhes
+        details_label = self.query_one("#loading-details", Label)
+        if filename:
+            short_name = filename[-40:] if len(filename) > 40 else filename
+            details_label.update(f"📄 {short_name}")
 
 
 class SearchScreen(Screen):
@@ -185,25 +261,48 @@ class LogAnalyzerApp(App):
 
     def on_mount(self):
         """Quando a aplicação é montada."""
-        self.load_all_files()
+        # Mostra tela de loading e inicia carregamento em background
+        if self.paths:
+            self.loading_screen = LoadingScreen(total_files=len(self.paths))
+            self.push_screen(self.loading_screen)
+            # Inicia worker para carregar arquivos
+            self.load_files_worker = self.run_worker(self.load_all_files_async(), exclusive=True)
 
-    def load_all_files(self):
-        """Carrega todos os arquivos."""
-        for path in self.paths:
-            # Todos os paths agora são arquivos (já expandidos)
-            # Cria parser apropriado (com config customizado se existir)
-            parser, config = LogParser.create_parser(path)
+    @staticmethod
+    def load_single_file(path: Path, max_lines: Optional[int]) -> tuple[str, List[LogEntry]]:
+        """Carrega um único arquivo (executado em thread separada)."""
+        parser, config = LogParser.create_parser(path)
 
-            # Se tem config com max_lines, usa esse limite
-            max_lines = config.max_lines if config else None
+        # Se tem config, usa as opções de performance
+        if max_lines is None and config:
+            max_lines = config.max_lines
 
-            # Parse arquivo com limite de linhas
-            entries = parser.parse_file(path, max_lines=max_lines)
-            self.files_data[str(path)] = entries
+        smart_sample = config.smart_sample if config else False
+
+        # Parse arquivo com limite de linhas e amostragem
+        entries = parser.parse_file(path, max_lines=max_lines, smart_sample=smart_sample)
+        return (str(path), entries)
+
+    async def load_all_files_async(self):
+        """Carrega todos os arquivos de forma assíncrona."""
+        total = len(self.paths)
+
+        for idx, path in enumerate(self.paths, 1):
+            # Atualiza progress na tela de loading
+            if hasattr(self, 'loading_screen'):
+                self.loading_screen.update_progress(idx, total, path.name)
+
+            # Carrega arquivo (bloqueia essa thread mas não a UI)
+            path_str, entries = await self.run_in_thread(
+                self.load_single_file, path, None
+            )
+
+            # Armazena dados
+            self.files_data[path_str] = entries
 
             # Carrega no viewer correspondente
-            if str(path) in self.log_viewers:
-                self.log_viewers[str(path)].load_entries(entries)
+            if path_str in self.log_viewers:
+                self.log_viewers[path_str].load_entries(entries)
 
         # Atualiza dashboard
         if self.dashboard:
@@ -211,6 +310,10 @@ class LogAnalyzerApp(App):
 
         # Atualiza stats bar
         self.update_stats_bar()
+
+        # Fecha tela de loading
+        if hasattr(self, 'loading_screen'):
+            self.pop_screen()
 
     def update_stats_bar(self):
         """Atualiza a barra de estatísticas."""

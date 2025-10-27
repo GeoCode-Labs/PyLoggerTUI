@@ -16,6 +16,7 @@ class LogConfig:
     date_format: Optional[str] = None
     max_lines: Optional[int] = None  # Limite de linhas a carregar (None = sem limite)
     chunk_size: int = 10000  # Tamanho do chunk para lazy loading
+    smart_sample: bool = False  # Amostragem inteligente para arquivos gigantes (>500MB)
 
     def to_regex(self) -> re.Pattern:
         """
@@ -112,12 +113,14 @@ class ConfigLoader:
             # Opções de performance
             max_lines = data.get('max_lines')
             chunk_size = data.get('chunk_size', 10000)
+            smart_sample = data.get('smart_sample', False)
 
             return LogConfig(
                 format=log_format,
                 date_format=date_format,
                 max_lines=max_lines,
-                chunk_size=chunk_size
+                chunk_size=chunk_size,
+                smart_sample=smart_sample
             )
 
         except Exception as e:

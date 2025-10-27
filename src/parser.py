@@ -225,29 +225,48 @@ class LogParser:
             message=line
         )
 
-    def parse_file(self, file_path: Path, max_lines: Optional[int] = None) -> List[LogEntry]:
+    def parse_file(self, file_path: Path, max_lines: Optional[int] = None, smart_sample: bool = False) -> List[LogEntry]:
         """
         Parse um arquivo de log completo usando este parser.
 
         Args:
             file_path: Caminho do arquivo
             max_lines: Número máximo de linhas a carregar (None = sem limite)
+            smart_sample: Se True, faz amostragem inteligente em arquivos grandes
         """
         entries = []
 
         try:
             file_size = file_path.stat().st_size
 
+            # Se arquivo é muito grande (>500MB) e smart_sample está ativo,
+            # usa amostragem ao invés de carregar tudo
+            use_sampling = False
+            sample_rate = 1
+
+            if smart_sample and file_size > 500 * 1024 * 1024:  # 500MB
+                # Calcula taxa de amostragem para pegar ~100k linhas
+                estimated_lines = file_size // 100  # Estimativa: 100 bytes por linha
+                if estimated_lines > 100000:
+                    sample_rate = max(2, estimated_lines // 100000)
+                    use_sampling = True
+                    print(f"Info: Large file ({file_size // (1024*1024)}MB) - using smart sampling (1 in {sample_rate} lines)")
+
             # Se arquivo é muito grande, mostra aviso
             if file_size > 100 * 1024 * 1024:  # 100MB
                 print(f"Warning: Large file detected ({file_size // (1024*1024)}MB): {file_path.name}")
-                print(f"         Loading may take a while...")
+                if not use_sampling:
+                    print(f"         Loading may take a while...")
 
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 for line_num, line in enumerate(f, 1):
+                    # Aplica amostragem se ativo
+                    if use_sampling and line_num % sample_rate != 0:
+                        continue
+
                     # Aplica limite de linhas se configurado
-                    if max_lines and line_num > max_lines:
-                        print(f"Info: Stopped at {max_lines} lines (max_lines limit)")
+                    if max_lines and len(entries) >= max_lines:
+                        print(f"Info: Stopped at {len(entries)} lines (max_lines limit)")
                         break
 
                     entry = self.parse_line(line, line_num)
@@ -255,8 +274,8 @@ class LogParser:
                     entries.append(entry)
 
                     # Mostra progresso a cada 50k linhas
-                    if line_num % 50000 == 0:
-                        print(f"  Loaded {line_num:,} lines...")
+                    if len(entries) % 50000 == 0:
+                        print(f"  Loaded {len(entries):,} lines...")
 
         except Exception as e:
             # Retorna entrada de erro se falhar
