@@ -192,8 +192,13 @@ class LogAnalyzerApp(App):
         for path in self.paths:
             # Todos os paths agora são arquivos (já expandidos)
             # Cria parser apropriado (com config customizado se existir)
-            parser = LogParser.create_parser(path)
-            entries = parser.parse_file(path)
+            parser, config = LogParser.create_parser(path)
+
+            # Se tem config com max_lines, usa esse limite
+            max_lines = config.max_lines if config else None
+
+            # Parse arquivo com limite de linhas
+            entries = parser.parse_file(path, max_lines=max_lines)
             self.files_data[str(path)] = entries
 
             # Carrega no viewer correspondente

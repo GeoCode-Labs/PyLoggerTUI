@@ -178,6 +178,41 @@ O PyLoggerTUI procura automaticamente por:
 
 Se nenhum arquivo for encontrado, usa os formatos padrão.
 
+## Otimizações de Performance
+
+Para arquivos muito grandes (>100MB) ou muitos arquivos, use as opções de performance no `config.yml`:
+
+```yaml
+# Formato do log
+format: "{time} | {level} | {module}:{function}:{line} - {message}"
+date_format: "%Y-%m-%d %H:%M:%S.%f"
+
+# === OPÇÕES DE PERFORMANCE ===
+
+# Limite máximo de linhas (evita travamentos)
+max_lines: 100000  # Carrega apenas as primeiras 100k linhas
+
+# Tamanho do chunk para lazy loading
+chunk_size: 10000  # Padrão: 10000
+```
+
+### Dicas para Arquivos Grandes
+
+1. **Arquivos > 100MB**: Use `max_lines: 100000` ou menor
+2. **Muitos arquivos**: Abra apenas alguns de cada vez
+3. **Muito lento**:
+   - Reduza `max_lines` para 50000 ou 10000
+   - Ou use `tail -n 50000 arquivo.log > arquivo_pequeno.log` e abra o arquivo menor
+
+### Indicadores de Progresso
+
+O PyLoggerTUI mostra automaticamente:
+- Avisos para arquivos > 100MB
+- Progresso a cada 50.000 linhas carregadas
+- Mensagem quando atinge o limite de `max_lines`
+
+Veja o exemplo completo em `examples/config-performance.yml`.
+
 ## Atalhos de Teclado
 
 | Atalho | Ação |

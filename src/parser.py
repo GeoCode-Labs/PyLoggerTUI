@@ -225,16 +225,39 @@ class LogParser:
             message=line
         )
 
-    def parse_file(self, file_path: Path) -> List[LogEntry]:
-        """Parse um arquivo de log completo usando este parser."""
+    def parse_file(self, file_path: Path, max_lines: Optional[int] = None) -> List[LogEntry]:
+        """
+        Parse um arquivo de log completo usando este parser.
+
+        Args:
+            file_path: Caminho do arquivo
+            max_lines: Número máximo de linhas a carregar (None = sem limite)
+        """
         entries = []
 
         try:
+            file_size = file_path.stat().st_size
+
+            # Se arquivo é muito grande, mostra aviso
+            if file_size > 100 * 1024 * 1024:  # 100MB
+                print(f"Warning: Large file detected ({file_size // (1024*1024)}MB): {file_path.name}")
+                print(f"         Loading may take a while...")
+
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 for line_num, line in enumerate(f, 1):
+                    # Aplica limite de linhas se configurado
+                    if max_lines and line_num > max_lines:
+                        print(f"Info: Stopped at {max_lines} lines (max_lines limit)")
+                        break
+
                     entry = self.parse_line(line, line_num)
                     entry.file_path = str(file_path)
                     entries.append(entry)
+
+                    # Mostra progresso a cada 50k linhas
+                    if line_num % 50000 == 0:
+                        print(f"  Loaded {line_num:,} lines...")
+
         except Exception as e:
             # Retorna entrada de erro se falhar
             entries.append(LogEntry(
@@ -247,19 +270,23 @@ class LogParser:
         return entries
 
     @staticmethod
-    def create_parser(file_path: Path) -> 'LogParser':
+    def create_parser(file_path: Path) -> tuple['LogParser', Optional['LogConfig']]:
         """
         Cria um parser apropriado para o arquivo.
         Procura por config.yml na mesma pasta do arquivo.
+
+        Returns:
+            Tupla (parser, config) onde config pode ser None
         """
-        from .config import ConfigLoader
+        from .config import ConfigLoader, LogConfig
 
         config = ConfigLoader.find_config(file_path)
         if config:
             pattern = config.to_regex()
-            return LogParser(custom_pattern=pattern, date_format=config.date_format)
+            parser = LogParser(custom_pattern=pattern, date_format=config.date_format)
+            return (parser, config)
         else:
-            return LogParser()
+            return (LogParser(), None)
 
     @classmethod
     def get_log_stats(cls, entries: List[LogEntry]) -> dict:

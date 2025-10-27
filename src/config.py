@@ -14,6 +14,8 @@ class LogConfig:
     """Configuração de formato de log."""
     format: str
     date_format: Optional[str] = None
+    max_lines: Optional[int] = None  # Limite de linhas a carregar (None = sem limite)
+    chunk_size: int = 10000  # Tamanho do chunk para lazy loading
 
     def to_regex(self) -> re.Pattern:
         """
@@ -107,9 +109,15 @@ class ConfigLoader:
 
             date_format = data.get('date_format') or data.get('time_format')
 
+            # Opções de performance
+            max_lines = data.get('max_lines')
+            chunk_size = data.get('chunk_size', 10000)
+
             return LogConfig(
                 format=log_format,
-                date_format=date_format
+                date_format=date_format,
+                max_lines=max_lines,
+                chunk_size=chunk_size
             )
 
         except Exception as e:

@@ -1,0 +1,36 @@
+# Exemplo de configuração com otimizações de performance
+# Para arquivos grandes, use essas opções para evitar travamentos
+
+# Formato do log - ajuste para seu formato específico
+format: "{time} | {level} | {module}:{function}:{line} - {message}"
+
+# Formato de data (opcional)
+date_format: "%Y-%m-%d %H:%M:%S.%f"
+
+# === OPÇÕES DE PERFORMANCE ===
+
+# Limite máximo de linhas a carregar (evita travamentos em arquivos gigantes)
+# Exemplos:
+# - 50000 = carrega apenas as primeiras 50 mil linhas
+# - null ou comentado = sem limite (carrega tudo)
+max_lines: 100000
+
+# Tamanho do chunk para lazy loading (padrão: 10000)
+# Quanto menor, menos memória usa, mas mais lento
+# Quanto maior, mais rápido, mas usa mais memória
+chunk_size: 10000
+
+# DICAS DE PERFORMANCE:
+#
+# 1. Para arquivos > 100MB:
+#    - Use max_lines: 100000 ou menor
+#    - Filtre os logs no source antes de abrir no TUI
+#
+# 2. Para muitos arquivos:
+#    - Abra apenas alguns de cada vez
+#    - Use o TUI em arquivos individuais
+#
+# 3. Se ainda estiver lento:
+#    - Reduza max_lines para 50000 ou 10000
+#    - Use tail -n 50000 arquivo.log > arquivo_pequeno.log
+#    - Abra o arquivo menor no TUI
