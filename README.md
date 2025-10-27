@@ -180,7 +180,15 @@ Se nenhum arquivo for encontrado, usa os formatos padrão.
 
 ## Otimizações de Performance
 
-Para arquivos muito grandes (>100MB) ou muitos arquivos, use as opções de performance no `config.yml`:
+### ⚡ Tela de Loading
+
+O PyLoggerTUI agora mostra uma **tela de loading visual** enquanto carrega arquivos grandes:
+- Barra de progresso com porcentagem
+- Indicador de arquivo atual sendo carregado
+- **Não trava** - interface continua responsiva
+- Carregamento em background com workers
+
+### Opções de Performance no config.yml
 
 ```yaml
 # Formato do log
@@ -194,22 +202,36 @@ max_lines: 100000  # Carrega apenas as primeiras 100k linhas
 
 # Tamanho do chunk para lazy loading
 chunk_size: 10000  # Padrão: 10000
+
+# Amostragem inteligente para arquivos GIGANTES (>500MB)
+smart_sample: true  # true = pega amostra, false = carrega tudo
 ```
 
-### Dicas para Arquivos Grandes
+### 📊 Dicas para Arquivos Grandes
 
-1. **Arquivos > 100MB**: Use `max_lines: 100000` ou menor
-2. **Muitos arquivos**: Abra apenas alguns de cada vez
-3. **Muito lento**:
-   - Reduza `max_lines` para 50000 ou 10000
-   - Ou use `tail -n 50000 arquivo.log > arquivo_pequeno.log` e abra o arquivo menor
+| Tamanho do Arquivo | max_lines | smart_sample | Observação |
+|-------------------|-----------|--------------|------------|
+| < 100MB | (sem limite) | false | Carrega tudo rapidamente |
+| 100MB - 500MB | 100000 | false | Carrega completo com limite |
+| 500MB - 2GB | 100000 | true | Usa amostragem inteligente |
+| > 2GB | 50000 | true | Amostragem agressiva |
+
+### Como Funciona o smart_sample
+
+Quando `smart_sample: true` e arquivo > 500MB:
+- **Calcula** quantas linhas tem o arquivo (~1 linha = 100 bytes)
+- **Pega amostra** uniformemente distribuída (ex: 1 a cada 10 linhas)
+- **Resulta** em ~100k linhas representativas do arquivo inteiro
+- **Performance** muito melhor que carregar tudo
 
 ### Indicadores de Progresso
 
 O PyLoggerTUI mostra automaticamente:
-- Avisos para arquivos > 100MB
-- Progresso a cada 50.000 linhas carregadas
-- Mensagem quando atinge o limite de `max_lines`
+- 🟦 **Tela de loading** com barra de progresso
+- ⚠️ Avisos para arquivos > 100MB
+- 📊 Progresso a cada 50.000 linhas carregadas
+- ℹ️ Mensagem quando atinge o limite de `max_lines`
+- 🎯 Indicador quando usa smart sampling
 
 Veja o exemplo completo em `examples/config-performance.yml`.
 

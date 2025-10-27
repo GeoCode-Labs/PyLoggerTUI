@@ -20,17 +20,32 @@ max_lines: 100000
 # Quanto maior, mais rápido, mas usa mais memória
 chunk_size: 10000
 
+# Amostragem inteligente para arquivos MUITO grandes (>500MB)
+# true = pega apenas uma amostra de linhas (ex: 1 a cada 10)
+# false = carrega tudo (respeitando max_lines)
+# RECOMENDADO: true para arquivos > 1GB
+smart_sample: true
+
 # DICAS DE PERFORMANCE:
 #
-# 1. Para arquivos > 100MB:
+# 1. Para arquivos 100MB - 500MB:
 #    - Use max_lines: 100000 ou menor
-#    - Filtre os logs no source antes de abrir no TUI
+#    - smart_sample: false (carrega linhas completas)
 #
-# 2. Para muitos arquivos:
-#    - Abra apenas alguns de cada vez
+# 2. Para arquivos 500MB - 2GB:
+#    - Use max_lines: 100000
+#    - smart_sample: true (carrega amostra inteligente)
+#
+# 3. Para arquivos > 2GB:
+#    - max_lines: 50000
+#    - smart_sample: true
+#    - OU use: tail -n 100000 arquivo.log > recente.log
+#
+# 4. Para muitos arquivos:
+#    - Abra apenas alguns de cada vez (não a pasta inteira)
 #    - Use o TUI em arquivos individuais
 #
-# 3. Se ainda estiver lento:
-#    - Reduza max_lines para 50000 ou 10000
-#    - Use tail -n 50000 arquivo.log > arquivo_pequeno.log
-#    - Abra o arquivo menor no TUI
+# IMPORTANTE:
+# - O TUI agora mostra uma tela de loading enquanto carrega
+# - Arquivos são carregados em background (não trava a interface)
+# - Para arquivos MUITO pesados, sempre use smart_sample: true
