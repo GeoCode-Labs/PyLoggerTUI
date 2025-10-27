@@ -80,19 +80,27 @@ class LoadingScreen(Screen):
         self.current_file = current
         progress_pct = int((current / total) * 100) if total > 0 else 0
 
-        # Atualiza barra de progresso
-        progress_bar = self.query_one("#loading-progress", ProgressBar)
-        progress_bar.update(progress=progress_pct)
+        # Verifica se a tela está montada antes de atualizar
+        if not self.is_mounted:
+            return
 
-        # Atualiza status
-        status_label = self.query_one("#loading-status", Label)
-        status_label.update(f"Loading file {current}/{total}...")
+        try:
+            # Atualiza barra de progresso
+            progress_bar = self.query_one("#loading-progress", ProgressBar)
+            progress_bar.update(progress=progress_pct)
 
-        # Atualiza detalhes
-        details_label = self.query_one("#loading-details", Label)
-        if filename:
-            short_name = filename[-40:] if len(filename) > 40 else filename
-            details_label.update(f"📄 {short_name}")
+            # Atualiza status
+            status_label = self.query_one("#loading-status", Label)
+            status_label.update(f"Loading file {current}/{total}...")
+
+            # Atualiza detalhes
+            details_label = self.query_one("#loading-details", Label)
+            if filename:
+                short_name = filename[-40:] if len(filename) > 40 else filename
+                details_label.update(f"📄 {short_name}")
+        except Exception:
+            # Se ainda não montou, ignora
+            pass
 
 
 class SearchScreen(Screen):
@@ -265,8 +273,13 @@ class LogAnalyzerApp(App):
         if self.paths:
             self.loading_screen = LoadingScreen(total_files=len(self.paths))
             self.push_screen(self.loading_screen)
-            # Inicia worker para carregar arquivos
-            self.load_files_worker = self.run_worker(self.load_all_files_async(), exclusive=True)
+            # Aguarda a tela de loading ser montada antes de iniciar worker
+            self.call_after_refresh(self.start_loading)
+
+    def start_loading(self):
+        """Inicia o carregamento dos arquivos (chamado após refresh)."""
+        # Inicia worker para carregar arquivos
+        self.load_files_worker = self.run_worker(self.load_all_files_async(), exclusive=True)
 
     @staticmethod
     def load_single_file(path: Path, max_lines: Optional[int]) -> tuple[str, List[LogEntry]]:
